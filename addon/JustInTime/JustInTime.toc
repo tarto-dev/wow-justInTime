@@ -1,0 +1,11 @@
+## Interface: 120001
+## Title: JustInTime
+## Notes: Lightweight raid timing helper for WoW Retail
+## Author: Claralicious_
+## Version: 0.1.0
+## SavedVariables: JustInTimeDB
+
+Locales.lua
+Config.lua
+Core.lua
+UI.lua
