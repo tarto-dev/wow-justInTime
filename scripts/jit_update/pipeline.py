@@ -4,13 +4,18 @@ from __future__ import annotations
 
 import math
 import statistics
+from datetime import datetime
 from typing import Any, Protocol
 
+from jit_update.config import Config
 from jit_update.models import ReferenceCell, Run, RunDetails
+from jit_update.raiderio import RaiderIOError
 
 
 class RaiderIOClientLike(Protocol):
     """Protocol matching what the pipeline needs from the HTTP client."""
+
+    def get_static_data(self, expansion_id: int) -> dict[str, Any]: ...
 
     def get_runs(
         self, season: str, region: str, dungeon: str, page: int, affixes: str = ...
@@ -154,3 +159,126 @@ def compute_reference_cell(details: list[RunDetails], num_bosses: int) -> Refere
         clear_time_ms=clear_time_median,
         boss_splits_ms=boss_medians,
     )
+
+
+DEFAULT_AFFIX_MAP: dict[int, str] = {
+    9: "tyrannical",
+    10: "fortified",
+    147: "xalataths-guile",
+}
+
+
+def _affix_combos_to_query(affix_map: dict[int, str]) -> list[str]:
+    """Generate the affix combos to query for Midnight Season 1.
+
+    Rotation: Fortified | Tyrannical, paired with the seasonal Xal'atath's Guile.
+    Returns the alphabetically-sorted combo slugs.
+    """
+    seasonal = ["xalataths-guile"]
+    rotation = ["fortified", "tyrannical"]
+    return sorted(["-".join(sorted([r, *seasonal])) for r in rotation])
+
+
+def build_document(
+    client: RaiderIOClientLike,
+    config: Config,
+    now: datetime,
+) -> dict[str, Any]:
+    """Run the full pipeline and assemble the Data.lua document dict.
+
+    Fetches static data + runs + run details, aggregates per
+    (dungeon x level x affix_combo), and returns a dict ready for the Lua renderer.
+
+    Args:
+        client: Raider.IO client implementing :class:`RaiderIOClientLike`.
+        config: Fully-validated pipeline configuration.
+        now: Timestamp to embed in the document's ``generated_at`` field.
+
+    Returns:
+        A nested dict with ``meta``, ``affix_id_to_slug``, and ``dungeons`` keys.
+
+    Raises:
+        RaiderIOError: If the configured season is absent from static data.
+    """
+    static = client.get_static_data(expansion_id=config.raiderio.expansion_id)
+
+    season_obj = next(
+        (s for s in static.get("seasons", []) if s.get("slug") == config.raiderio.season),
+        None,
+    )
+    if season_obj is None:
+        raise RaiderIOError(f"season {config.raiderio.season!r} not in static data")
+
+    dungeons_static = season_obj.get("dungeons", [])
+    affix_combos = _affix_combos_to_query(DEFAULT_AFFIX_MAP)
+
+    document: dict[str, Any] = {
+        "meta": {
+            "generated_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "season": config.raiderio.season,
+            "schema_version": config.output.schema_version,
+        },
+        "affix_id_to_slug": dict(DEFAULT_AFFIX_MAP),
+        "dungeons": {},
+    }
+
+    for dg in dungeons_static:
+        slug = dg["slug"]
+        timer_ms = int(dg["keystone_timer_seconds"]) * 1000
+        levels: dict[int, dict[str, Any]] = {}
+        bosses_seen: dict[int, dict[str, Any]] = {}
+
+        for level in config.scope.levels:
+            for combo in affix_combos:
+                runs = collect_timed_runs(
+                    client=client,
+                    season=config.raiderio.season,
+                    region=config.raiderio.region,
+                    dungeon=slug,
+                    target_level=level,
+                    target_affix_combo=combo,
+                    min_sample=config.scope.min_sample,
+                    max_pages=config.scope.max_pages_per_query,
+                )
+                if len(runs) < config.scope.min_sample:
+                    continue
+                sample = select_slowest_percentile(
+                    runs, percentile=config.scope.slowest_percentile, min_count=2
+                )
+                details_list: list[RunDetails] = []
+                for run in sample:
+                    raw = client.get_run_details(
+                        season=config.raiderio.season, run_id=run.keystone_run_id
+                    )
+                    rd = RunDetails.model_validate(raw)
+                    details_list.append(rd)
+                    for enc in rd.encounters:
+                        bosses_seen.setdefault(
+                            enc.boss.ordinal,
+                            {
+                                "ordinal": enc.boss.ordinal,
+                                "slug": enc.boss.slug,
+                                "name": enc.boss.name,
+                                "wow_encounter_id": enc.boss.wow_encounter_id,
+                            },
+                        )
+                cell = compute_reference_cell(details_list, num_bosses=int(dg.get("num_bosses", 4)))
+                if cell is None:
+                    continue
+                levels.setdefault(level, {})[combo] = {
+                    "sample_size": cell.sample_size,
+                    "clear_time_ms": cell.clear_time_ms,
+                    "boss_splits_ms": list(cell.boss_splits_ms),
+                }
+
+        bosses_list = sorted(bosses_seen.values(), key=lambda b: b["ordinal"])
+        document["dungeons"][slug] = {
+            "short_name": dg.get("short_name", ""),
+            "challenge_mode_id": int(dg["challenge_mode_id"]),
+            "timer_ms": timer_ms,
+            "num_bosses": int(dg.get("num_bosses", len(bosses_list) or 4)),
+            "bosses": bosses_list,
+            "levels": levels,
+        }
+
+    return document

@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
+from jit_update.config import Config, OutputConfig, RaiderIOConfig, ScopeConfig
 from jit_update.models import Run, RunDetails
 from jit_update.pipeline import (
+    build_document,
     collect_timed_runs,
     compute_reference_cell,
     select_slowest_percentile,
@@ -303,3 +306,116 @@ def test_compute_reference_cell_interpolates_trailing_boss_against_clear_time() 
     # Boss 4 has no data → next_known falls back to clear_time_median = 1742000
     # prev_known = 1200000 (boss 3) → (1200000 + 1742000) // 2 = 1471000
     assert cell.boss_splits_ms[3] == 1471000
+
+
+def _make_config() -> Config:
+    return Config(
+        raiderio=RaiderIOConfig(
+            api_base="https://raider.io/api/v1",
+            expansion_id=11,
+            season="season-mn-1",
+            region="world",
+            rate_per_minute=600,
+            cache_ttl_seconds=60,
+            timeout_seconds=5.0,
+            max_retries=2,
+        ),
+        scope=ScopeConfig(
+            levels=[12],
+            min_sample=2,
+            slowest_percentile=50,  # half = at least 1
+            max_pages_per_query=1,
+        ),
+        output=OutputConfig(
+            data_lua_path="/tmp/Data.lua",
+            schema_version=1,
+        ),
+    )
+
+
+def test_build_document_assembles_meta_and_dungeons() -> None:
+    static_data = {
+        "seasons": [
+            {
+                "slug": "season-mn-1",
+                "is_main_season": True,
+                "dungeons": [
+                    {
+                        "id": 14032,
+                        "challenge_mode_id": 402,
+                        "slug": "algethar-academy",
+                        "name": "Algeth'ar Academy",
+                        "short_name": "AA",
+                        "keystone_timer_seconds": 1800,
+                    },
+                ],
+            }
+        ]
+    }
+    runs_page = {
+        "rankings": [
+            _make_run_payload(1, 12, 1700000),
+            _make_run_payload(2, 12, 1750000),
+        ]
+    }
+    details_payload = _make_details_payload([280000, 740000, 1200000, 1742000])
+
+    client = MagicMock()
+    client.get_static_data.return_value = static_data
+    client.get_runs.return_value = runs_page
+    client.get_run_details.return_value = details_payload
+
+    cfg = _make_config()
+    doc = build_document(
+        client=client,
+        config=cfg,
+        now=datetime(2026, 4, 25, 14, 30, 0, tzinfo=UTC),
+    )
+
+    assert doc["meta"]["season"] == "season-mn-1"
+    assert doc["meta"]["schema_version"] == 1
+    assert doc["meta"]["generated_at"] == "2026-04-25T14:30:00Z"
+    assert "algethar-academy" in doc["dungeons"]
+    aa = doc["dungeons"]["algethar-academy"]
+    assert aa["short_name"] == "AA"
+    assert aa["challenge_mode_id"] == 402
+    assert aa["timer_ms"] == 1800000
+    assert aa["num_bosses"] == 4
+    cell = aa["levels"][12]["fortified-xalataths-guile"]
+    assert cell["sample_size"] >= 1
+    assert cell["boss_splits_ms"] == [280000, 740000, 1200000, 1742000]
+    assert {b["ordinal"] for b in aa["bosses"]} == {1, 2, 3, 4}
+
+
+def test_build_document_skips_cells_with_insufficient_sample() -> None:
+    static_data = {
+        "seasons": [
+            {
+                "slug": "season-mn-1",
+                "is_main_season": True,
+                "dungeons": [
+                    {
+                        "id": 14032,
+                        "challenge_mode_id": 402,
+                        "slug": "algethar-academy",
+                        "name": "Algeth'ar Academy",
+                        "short_name": "AA",
+                        "keystone_timer_seconds": 1800,
+                    }
+                ],
+            }
+        ]
+    }
+    client = MagicMock()
+    client.get_static_data.return_value = static_data
+    client.get_runs.return_value = {"rankings": []}
+
+    cfg = _make_config()
+    doc = build_document(
+        client=client,
+        config=cfg,
+        now=datetime(2026, 4, 25, 14, 30, 0, tzinfo=UTC),
+    )
+
+    aa = doc["dungeons"]["algethar-academy"]
+    assert aa["levels"] == {}
