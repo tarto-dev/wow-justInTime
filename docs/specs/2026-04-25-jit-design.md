@@ -217,33 +217,51 @@ resolveRef() :
     return { boss_splits_ms = ..., clear_time_ms = ... }
 ```
 
-### 4.4 Interpolation
+### 4.4 Modèle de pace
 
-Soit `ref_splits = { T_1, T_2, ..., T_n }` les timestamps relatifs (en ms) auxquels la référence a tué les bosses 1..n, et `T_n = clear_time_ms`. Soit `t` l'elapsed courant.
+Soit `ref_splits = { T_1, T_2, ..., T_K }` les timestamps relatifs (en ms) auxquels la référence a tué les bosses 1..K, avec `T_K = clear_time_ms`. Soit `your_split[n]` ton elapsed au moment où tu as tué le boss n, et `t` l'elapsed courant.
 
-```
-interp_ref(t, splits) :
-  si t <= 0          : return 0
-  si t >= splits[n]  : return splits[n]
-  trouver i tel que splits[i-1] < t <= splits[i]   (avec splits[0] = 0)
-  return splits[i-1] + (t - splits[i-1]) * (splits[i] - splits[i-1]) / (splits[i] - splits[i-1])
-                       = t  (dans le segment, position absolue conservée)
-```
+#### Anchors aux boss kills
 
-Cette interpolation positionne la **référence** à la même elapsed que toi. Le delta vrai est anchoré aux boss kills :
+À chaque `ENCOUNTER_END` du boss `n` :
 
 ```
-delta_at_anchor(n) = your_split[n] − T_n
-
-entre boss n et n+1, à elapsed t :
-  segment_progress = (t - your_split[n]) / (your_estimated_split[n+1] - your_split[n])
-  où your_estimated_split[n+1] est extrapolé linéairement :
-    your_estimated_split[n+1] = your_split[n] + (T_{n+1} - T_n) * (1 + delta_at_anchor(n) / T_n)
-
-  delta_continuous(t) = delta_at_anchor(n) + (extrapolated_drift_at_t)
+your_split[n]       = t                    (elapsed au moment du kill)
+delta_at_anchor[n]  = your_split[n] − T_n  (signed ms ; >0 retard, <0 avance)
+pace_ratio[n]       = your_split[n] / T_n  (>1 retard, <1 avance)
 ```
 
-Détails de l'extrapolation à finaliser en phase plan ; le design fixe l'**intent** (feedback continu, anchoré aux boss kills, drift linéaire).
+#### Delta continu entre kills
+
+Soit `n` le dernier boss tué (`n = 0` avant le premier kill, `delta_at_anchor[0] = 0`).
+
+```
+si t ≤ T_{n+1} :
+    delta_continuous(t) = delta_at_anchor[n]
+    # tu es encore "dans la fenêtre" où la référence n'a pas non plus
+    # tué le prochain boss → delta gelé à l'anchor
+sinon (t > T_{n+1}) :
+    delta_continuous(t) = delta_at_anchor[n] + (t − T_{n+1})
+    # la référence aurait dû tuer le prochain boss à T_{n+1} ;
+    # chaque seconde au-delà ajoute au delta
+```
+
+Quand tu tues finalement boss `n+1`, un nouvel anchor s'établit (qui peut absorber ou aggraver l'accumulation), et le cycle reprend.
+
+#### Projection ETA
+
+```
+projected_finish(t) = T_K × max( pace_ratio[n], t / T_{n+1} )
+                      où n = dernier boss tué, et T_{n+1} = T_K si n == K
+
+ETA = projected_finish(t)
+deplete_projected = projected_finish(t) > timer_ms
+```
+
+Cette formulation garantit :
+- continuité (pas de saut entre kills, drift linéaire après dépassement de `T_{n+1}`),
+- conservatisme (le delta ne peut que s'aggraver entre deux kills, jamais s'améliorer artificiellement),
+- réactivité (au moment du kill, l'anchor met à jour le delta avec la valeur exacte).
 
 ---
 
