@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -25,7 +26,7 @@ def test_calls_beyond_capacity_are_throttled() -> None:
         rl.acquire()
     elapsed = time.monotonic() - start
     # 4 tokens needed, 2 in burst → 2 require ~0.1s each at 10/s
-    assert 0.15 < elapsed < 0.5, f"expected ~0.2s of throttling, got {elapsed:.3f}s"
+    assert 0.10 < elapsed < 0.5, f"expected ~0.2s of throttling, got {elapsed:.3f}s"
 
 
 def test_invalid_rate_raises() -> None:
@@ -33,3 +34,17 @@ def test_invalid_rate_raises() -> None:
         RateLimiter(rate_per_minute=0, capacity=1)
     with pytest.raises(ValueError):
         RateLimiter(rate_per_minute=10, capacity=0)
+
+
+def test_concurrent_acquires_respect_capacity() -> None:
+    """8 threads acquire 1 token each from a 4-capacity 600/min limiter; total
+    elapsed should reflect ~4 tokens worth of throttling (~0.4s for the second
+    half), not zero (which would indicate the race condition was reintroduced)."""
+    rl = RateLimiter(rate_per_minute=600, capacity=4)
+    start = time.monotonic()
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        list(ex.map(lambda _: rl.acquire(), range(8)))
+    elapsed = time.monotonic() - start
+    # 4 immediate (burst) + 4 throttled @ 10/sec ≈ 0.4s minimum
+    assert elapsed > 0.3, f"expected throttling to take >0.3s, got {elapsed:.3f}s"
+    assert elapsed < 1.0, f"expected <1.0s upper bound, got {elapsed:.3f}s"

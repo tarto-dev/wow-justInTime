@@ -26,16 +26,14 @@ class RateLimiter:
 
     def acquire(self) -> None:
         """Block until one token is available, then consume it."""
-        with self._lock:
-            self._refill()
-            if self._tokens >= 1.0:
-                self._tokens -= 1.0
-                return
-            wait = (1.0 - self._tokens) / self._tokens_per_sec
-        time.sleep(wait)
-        with self._lock:
-            self._refill()
-            self._tokens = max(0.0, self._tokens - 1.0)
+        while True:
+            with self._lock:
+                self._refill()
+                if self._tokens >= 1.0:
+                    self._tokens -= 1.0
+                    return
+                wait = (1.0 - self._tokens) / self._tokens_per_sec
+            time.sleep(wait)
 
     def _refill(self) -> None:
         now = time.monotonic()
