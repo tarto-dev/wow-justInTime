@@ -2,9 +2,9 @@
 ## Title: |cFFFFCC66J|r|cFFFFBB60u|r|cFFFFAA5As|r|cFFFF9955t|r|cFFFF884FI|r|cFFFF7749n|r|cFFFF6644T|r|cFFFF553Ei|r|cFFFF4439m|r|cFFFF3333e|r
 ## IconTexture: Interface\Icons\Spell_Nature_LightningBolt
 ## Notes: Mythic+ pace tracker — know if you'll deplete before it's too late
-## Notes-frFR: Tracker de tempo pour clés mythique+
+## Notes-frFR: Tracker de tempo pour clés mythique+ — sache si tu vas déplate avant qu'il soit trop tard
 ## Author: Claralicious_
-## Version: 0.1.3
+## Version: 0.1.4
 ## X-Category: Mythic+
 ## SavedVariables: JustInTimeDB
 
