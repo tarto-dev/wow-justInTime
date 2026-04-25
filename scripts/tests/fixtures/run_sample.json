@@ -1,0 +1,28 @@
+{
+  "rank": 1,
+  "score": 501.2,
+  "run": {
+    "keystone_run_id": 16544744,
+    "season": "season-mn-1",
+    "status": "finished",
+    "dungeon": {
+      "id": 14032,
+      "name": "Algeth'ar Academy",
+      "short_name": "AA",
+      "slug": "algethar-academy",
+      "map_challenge_mode_id": 402,
+      "keystone_timer_ms": 1800999,
+      "num_bosses": 4
+    },
+    "mythic_level": 12,
+    "clear_time_ms": 1742595,
+    "keystone_time_ms": 1800999,
+    "completed_at": "2026-04-23T16:01:45.000Z",
+    "num_chests": 1,
+    "time_remaining_ms": 58404,
+    "weekly_modifiers": [
+      {"id": 10, "slug": "fortified", "name": "Fortified"},
+      {"id": 147, "slug": "xalataths-guile", "name": "Xal'atath's Guile"}
+    ]
+  }
+}

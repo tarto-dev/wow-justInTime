@@ -1,0 +1,54 @@
+{
+  "season": "season-mn-1",
+  "keystone_run_id": 16544744,
+  "mythic_level": 12,
+  "clear_time_ms": 1742595,
+  "keystone_time_ms": 1800999,
+  "num_chests": 1,
+  "time_remaining_ms": 58404,
+  "weekly_modifiers": [
+    {"id": 10, "slug": "fortified"},
+    {"id": 147, "slug": "xalataths-guile"}
+  ],
+  "dungeon": {
+    "id": 14032,
+    "name": "Algeth'ar Academy",
+    "short_name": "AA",
+    "slug": "algethar-academy",
+    "map_challenge_mode_id": 402,
+    "keystone_timer_ms": 1800999,
+    "num_bosses": 4
+  },
+  "logged_details": {
+    "encounters": [
+      {
+        "duration_ms": 204547,
+        "is_success": true,
+        "approximate_relative_started_at": 133908,
+        "approximate_relative_ended_at": 280000,
+        "boss": {"slug": "overgrown-ancient", "name": "Overgrown Ancient", "ordinal": 1, "wowEncounterId": 2563}
+      },
+      {
+        "duration_ms": 180000,
+        "is_success": true,
+        "approximate_relative_started_at": 500000,
+        "approximate_relative_ended_at": 740000,
+        "boss": {"slug": "second-boss", "name": "Second", "ordinal": 2, "wowEncounterId": 9999}
+      },
+      {
+        "duration_ms": 200000,
+        "is_success": true,
+        "approximate_relative_started_at": 950000,
+        "approximate_relative_ended_at": 1200000,
+        "boss": {"slug": "third-boss", "name": "Third", "ordinal": 3, "wowEncounterId": 9998}
+      },
+      {
+        "duration_ms": 220000,
+        "is_success": true,
+        "approximate_relative_started_at": 1500000,
+        "approximate_relative_ended_at": 1742000,
+        "boss": {"slug": "fourth-boss", "name": "Fourth", "ordinal": 4, "wowEncounterId": 9997}
+      }
+    ]
+  }
+}
