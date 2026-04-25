@@ -13,6 +13,39 @@ local rowElapsed, rowETA, rowLast, rowRef
 
 local UPDATE_INTERVAL = 0.1
 
+-- Brand color anchors for delta-driven gradient mapping.
+local COLOR_AHEAD_STRONG  = { 0.19, 0.78, 0.39 }  -- 30C864 vert vif
+local COLOR_AHEAD_LIGHT   = { 0.49, 0.85, 0.48 }  -- 7ED87A vert pâle
+local COLOR_NEUTRAL       = { 0.78, 0.62, 1.00 }  -- C8A0FF violet pâle
+local COLOR_BEHIND_LIGHT  = { 0.85, 0.47, 0.62 }  -- D878A0 violet rosé
+local COLOR_BEHIND_STRONG = { 1.00, 0.31, 0.31 }  -- FF5050 rouge
+
+local function lerpRGB(a, b, t)
+    return {
+        a[1] + (b[1] - a[1]) * t,
+        a[2] + (b[2] - a[2]) * t,
+        a[3] + (b[3] - a[3]) * t,
+    }
+end
+
+local function mapDeltaToColor(normalized)
+    local n = normalized or 0
+    if n <= -0.05 then return COLOR_AHEAD_STRONG end
+    if n <= -0.025 then
+        return lerpRGB(COLOR_AHEAD_LIGHT, COLOR_AHEAD_STRONG, (-0.025 - n) / 0.025)
+    end
+    if n <= 0 then
+        return lerpRGB(COLOR_NEUTRAL, COLOR_AHEAD_LIGHT, -n / 0.025)
+    end
+    if n <= 0.025 then
+        return lerpRGB(COLOR_NEUTRAL, COLOR_BEHIND_LIGHT, n / 0.025)
+    end
+    if n <= 0.05 then
+        return lerpRGB(COLOR_BEHIND_LIGHT, COLOR_BEHIND_STRONG, (n - 0.025) / 0.025)
+    end
+    return COLOR_BEHIND_STRONG
+end
+
 local function L(key) return NS.L and NS.L[key] or key end
 
 local function formatTime(ms)
@@ -166,6 +199,8 @@ function Overlay.SetData(elapsed_ms, pace, num_bosses, kills_count, last_split_m
     local progress = math.min(1, elapsed_ms / projected)
     barFill:SetWidth(280 * progress)
     barMarker:SetPoint("TOP", barTrack, "TOPLEFT", 280 * progress, 2)
+    local color = mapDeltaToColor(pace and pace.normalized or 0)
+    barFill:SetVertexColor(color[1], color[2], color[3], 1)
 
     local n = math.min(6, num_bosses or 4)
     for i = 1, 6 do
