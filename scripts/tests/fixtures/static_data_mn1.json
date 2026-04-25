@@ -1,0 +1,27 @@
+{
+  "seasons": [
+    {
+      "slug": "season-mn-1",
+      "name": "MN Season 1",
+      "is_main_season": true,
+      "dungeons": [
+        {
+          "id": 14032,
+          "challenge_mode_id": 402,
+          "slug": "algethar-academy",
+          "name": "Algeth'ar Academy",
+          "short_name": "AA",
+          "keystone_timer_seconds": 1800
+        },
+        {
+          "id": 15829,
+          "challenge_mode_id": 558,
+          "slug": "magisters-terrace",
+          "name": "Magisters' Terrace",
+          "short_name": "MT",
+          "keystone_timer_seconds": 2040
+        }
+      ]
+    }
+  ]
+}
