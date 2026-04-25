@@ -7,9 +7,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from jit_update.models import Run
+from jit_update.models import Run, RunDetails
 from jit_update.pipeline import (
     collect_timed_runs,
+    compute_reference_cell,
     select_slowest_percentile,
 )
 
@@ -196,3 +197,76 @@ def test_select_slowest_rejects_invalid_percentile() -> None:
         select_slowest_percentile(runs, percentile=150, min_count=2)
     with pytest.raises(ValueError, match="percentile must be in"):
         select_slowest_percentile(runs, percentile=-1, min_count=2)
+
+
+def _make_details_payload(splits_ms: list[int], num_bosses: int = 4) -> dict[str, Any]:
+    encounters = [
+        {
+            "duration_ms": 100000,
+            "is_success": True,
+            "approximate_relative_started_at": (splits_ms[i] - 100000),
+            "approximate_relative_ended_at": splits_ms[i],
+            "boss": {
+                "slug": f"boss{i + 1}",
+                "name": f"Boss {i + 1}",
+                "ordinal": i + 1,
+                "wowEncounterId": 1000 + i,
+            },
+        }
+        for i in range(num_bosses)
+    ]
+    return {
+        "season": "season-mn-1",
+        "keystone_run_id": 99,
+        "mythic_level": 12,
+        "clear_time_ms": splits_ms[-1],
+        "keystone_time_ms": 1800999,
+        "num_chests": 1,
+        "time_remaining_ms": 0,
+        "weekly_modifiers": [
+            {"id": 10, "slug": "fortified"},
+            {"id": 147, "slug": "xalataths-guile"},
+        ],
+        "dungeon": {
+            "id": 14032,
+            "name": "Algeth'ar Academy",
+            "short_name": "AA",
+            "slug": "algethar-academy",
+            "map_challenge_mode_id": 402,
+            "keystone_timer_ms": 1800999,
+            "num_bosses": num_bosses,
+        },
+        "logged_details": {"encounters": encounters},
+    }
+
+
+def test_compute_reference_cell_takes_median_per_boss() -> None:
+    details = [
+        RunDetails.model_validate(_make_details_payload([280000, 740000, 1200000, 1742000])),
+        RunDetails.model_validate(_make_details_payload([300000, 760000, 1220000, 1760000])),
+        RunDetails.model_validate(_make_details_payload([260000, 720000, 1180000, 1740000])),
+    ]
+    cell = compute_reference_cell(details, num_bosses=4)
+    assert cell is not None
+    assert cell.sample_size == 3
+    assert cell.boss_splits_ms == [280000, 740000, 1200000, 1742000]
+    assert cell.clear_time_ms == 1742000
+
+
+def test_compute_reference_cell_handles_missing_boss_split() -> None:
+    a = _make_details_payload([280000, 740000, 1200000, 1742000])
+    b = _make_details_payload([300000, 760000, 1220000, 1760000])
+    b["logged_details"]["encounters"][1]["is_success"] = False
+    details = [
+        RunDetails.model_validate(a),
+        RunDetails.model_validate(b),
+    ]
+    cell = compute_reference_cell(details, num_bosses=4)
+    assert cell is not None
+    assert cell.sample_size == 2
+    assert cell.boss_splits_ms[1] == 740000
+
+
+def test_compute_reference_cell_empty_returns_none() -> None:
+    cell = compute_reference_cell([], num_bosses=4)
+    assert cell is None

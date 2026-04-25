@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import math
+import statistics
 from typing import Any, Protocol
 
-from jit_update.models import Run
+from jit_update.models import ReferenceCell, Run, RunDetails
 
 
 class RaiderIOClientLike(Protocol):
@@ -94,3 +95,54 @@ def select_slowest_percentile(runs: list[Run], percentile: int, min_count: int =
     count = max(min_count, math.floor(len(runs) * percentile / 100))
     count = min(count, len(runs))
     return sorted_desc[:count]
+
+
+def compute_reference_cell(details: list[RunDetails], num_bosses: int) -> ReferenceCell | None:
+    """Aggregate per-boss split medians and clear-time median.
+
+    ``num_bosses`` is the dungeon's boss count (from static data); used to
+    pad/trim per-run splits to a stable length.
+
+    Returns ``None`` if no input runs. For bosses with no successful encounter
+    in any input run, the median is backfilled by linear interpolation between
+    known neighboring bosses (or against ``clear_time_median`` at the end).
+    """
+    if not details:
+        return None
+
+    per_boss: list[list[int]] = [[] for _ in range(num_bosses)]
+    for d in details:
+        splits = d.boss_splits_ms()
+        for idx in range(num_bosses):
+            if idx < len(splits) and splits[idx] is not None:
+                per_boss[idx].append(int(splits[idx]))  # type: ignore[arg-type]
+
+    boss_medians: list[int] = []
+    for idx in range(num_bosses):
+        values = per_boss[idx]
+        if not values:
+            boss_medians.append(0)  # placeholder; backfilled below
+        else:
+            boss_medians.append(int(statistics.median(values)))
+
+    clear_times = [int(d.clear_time_ms) for d in details]
+    clear_time_median = int(statistics.median(clear_times))
+
+    for idx in range(num_bosses):
+        if boss_medians[idx] != 0:
+            continue
+        prev_known = next(
+            (boss_medians[j] for j in range(idx - 1, -1, -1) if boss_medians[j] > 0),
+            0,
+        )
+        next_known = next(
+            (boss_medians[j] for j in range(idx + 1, num_bosses) if boss_medians[j] > 0),
+            clear_time_median,
+        )
+        boss_medians[idx] = (prev_known + next_known) // 2
+
+    return ReferenceCell(
+        sample_size=len(details),
+        clear_time_ms=clear_time_median,
+        boss_splits_ms=boss_medians,
+    )
