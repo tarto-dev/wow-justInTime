@@ -28,21 +28,40 @@ def collect_timed_runs(
     min_sample: int,
     max_pages: int,
 ) -> list[Run]:
-    """Paginate /mythic-plus/runs and return up to `min_sample`+ matching timed runs.
+    """Paginate /mythic-plus/runs and return matching timed runs.
 
     Filters client-side on:
       * mythic_level == target_level
       * weekly_modifiers combo == target_affix_combo
       * is_timed (num_chests >= 1)
 
-    Stops as soon as we have `min_sample` matches OR `max_pages` consumed.
+    Stops *after the page on which* we reach `min_sample` matches, or after
+    `max_pages` pages consumed (whichever comes first). The returned list may
+    therefore exceed `min_sample` (extra samples are statistically welcome).
+
+    **Production caveat (hypothesis #6 from design spec)**: Raider.IO's /runs
+    endpoint sorts globally by score, with high-level keys at the top. For
+    *low* target levels (+2..+8), matching runs sit deep in the leaderboard
+    behind thousands of high-level runs, and `max_pages` may be exhausted
+    before any matches are found. Callers should handle the empty-result case
+    by skipping the cell (see jit_update.config.scope.min_sample) and accept
+    that very low keys may have insufficient samples in v1.
     """
     matched: list[Run] = []
     for page in range(max_pages):
         payload = client.get_runs(season=season, region=region, dungeon=dungeon, page=page)
-        rankings = payload.get("rankings", [])
+        rankings = payload.get("rankings")
+        if rankings is None:
+            # 200 OK but no rankings key — likely an error envelope.
+            raise RuntimeError(
+                f"unexpected /runs payload (no 'rankings' key) for {dungeon} page {page}"
+            )
+        if not isinstance(rankings, list):
+            raise RuntimeError(
+                f"unexpected /runs payload (rankings not a list) for {dungeon} page {page}"
+            )
         if not rankings:
-            break
+            break  # legitimate end of results
         for entry in rankings:
             run = Run.model_validate(entry["run"])
             if run.mythic_level != target_level:
@@ -60,8 +79,15 @@ def collect_timed_runs(
 def select_slowest_percentile(runs: list[Run], percentile: int, min_count: int = 2) -> list[Run]:
     """Return the slowest ``percentile`` % of runs by ``clear_time_ms``.
 
-    ``min_count`` floors the result so we always have a usable sample.
+    The result count is ``max(min_count, floor(len(runs) * percentile / 100))``
+    clamped to ``len(runs)``. So if ``len(runs) < min_count``, the function
+    returns all available runs (fewer than ``min_count``) — the floor is a
+    target, not a guarantee. Returns ``[]`` if ``runs`` is empty.
+
+    Raises ``ValueError`` if ``percentile`` is outside [0, 100].
     """
+    if not 0 <= percentile <= 100:
+        raise ValueError(f"percentile must be in [0, 100], got {percentile}")
     if not runs:
         return []
     sorted_desc = sorted(runs, key=lambda r: r.clear_time_ms, reverse=True)

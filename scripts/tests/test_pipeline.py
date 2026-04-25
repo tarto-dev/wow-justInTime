@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import MagicMock
 
+import pytest
+
 from jit_update.models import Run
 from jit_update.pipeline import (
     collect_timed_runs,
@@ -148,3 +150,49 @@ def test_select_slowest_floors_at_min_count() -> None:
     selected = select_slowest_percentile(runs, percentile=10, min_count=2)
     assert len(selected) == 2
     assert {r.keystone_run_id for r in selected} == {3, 4}
+
+
+def test_collect_raises_on_malformed_runs_payload() -> None:
+    """Raider.IO returning 200 with no 'rankings' key should raise loudly."""
+    client = MagicMock()
+    client.get_runs.return_value = {"error": "rate limited", "code": 429}
+
+    with pytest.raises(RuntimeError, match="no 'rankings' key"):
+        collect_timed_runs(
+            client=client,
+            season="season-mn-1",
+            region="world",
+            dungeon="algethar-academy",
+            target_level=12,
+            target_affix_combo="fortified-xalataths-guile",
+            min_sample=10,
+            max_pages=5,
+        )
+
+
+def test_collect_raises_when_rankings_is_not_a_list() -> None:
+    """Defend against unexpected schemas where rankings is e.g. a dict."""
+    client = MagicMock()
+    client.get_runs.return_value = {"rankings": {"unexpected": "shape"}}
+
+    with pytest.raises(RuntimeError, match="rankings not a list"):
+        collect_timed_runs(
+            client=client,
+            season="season-mn-1",
+            region="world",
+            dungeon="algethar-academy",
+            target_level=12,
+            target_affix_combo="fortified-xalataths-guile",
+            min_sample=10,
+            max_pages=5,
+        )
+
+
+def test_select_slowest_rejects_invalid_percentile() -> None:
+    runs = [
+        Run.model_validate(_make_run_payload(i, 12, 1700000 + i * 1000)["run"]) for i in range(5)
+    ]
+    with pytest.raises(ValueError, match="percentile must be in"):
+        select_slowest_percentile(runs, percentile=150, min_count=2)
+    with pytest.raises(ValueError, match="percentile must be in"):
+        select_slowest_percentile(runs, percentile=-1, min_count=2)
