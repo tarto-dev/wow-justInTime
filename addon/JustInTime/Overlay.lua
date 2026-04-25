@@ -250,4 +250,51 @@ function Overlay.GetFrame()
     return frame
 end
 
+-- ─── Visibility modes (Task 8) ─────────────────────────────────────────────
+
+local POPUP_HOLD_SECONDS = 6
+local FADE_IN_SECONDS    = 0.3
+local FADE_OUT_SECONDS   = 0.5
+
+local popupHideTimer
+
+local function fadeOutThenHide()
+    if not frame then return end
+    UIFrameFadeOut(frame, FADE_OUT_SECONDS, frame:GetAlpha(), 0)
+    C_Timer.After(FADE_OUT_SECONDS, function()
+        if frame then frame:Hide() end
+    end)
+end
+
+function Overlay.RefreshVisibility()
+    if not frame then return end
+    local State = NS.State
+    if not State then return end
+    local cfg = State.Config()
+    local active = C_ChallengeMode.IsChallengeModeActive()
+    if not active then
+        frame:Hide()
+        return
+    end
+    if cfg.overlay_visibility == "always" then
+        frame:SetAlpha(1)
+        frame:Show()
+    end
+    -- popup mode: only show in response to triggers
+end
+
+function Overlay.OnBossKillTrigger()
+    if not frame then return end
+    local State = NS.State
+    if not State then return end
+    local cfg = State.Config()
+    if cfg.overlay_visibility ~= "popup" then return end
+    if popupHideTimer then popupHideTimer:Cancel() end
+
+    frame:SetAlpha(0)
+    frame:Show()
+    UIFrameFadeIn(frame, FADE_IN_SECONDS, 0, 1)
+    popupHideTimer = C_Timer.NewTimer(POPUP_HOLD_SECONDS, fadeOutThenHide)
+end
+
 NS.Overlay = Overlay
