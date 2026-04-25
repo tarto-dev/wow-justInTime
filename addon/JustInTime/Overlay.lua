@@ -236,6 +236,7 @@ function Overlay.Init()
         frame:ClearAllPoints()
         frame:SetPoint(pos.anchor or "TOPRIGHT", UIParent, pos.relAnchor or "TOPRIGHT", pos.x or -180, pos.y or -200)
     end
+    Overlay.RefreshDraggable()
 end
 
 function Overlay.Show()
@@ -295,6 +296,55 @@ function Overlay.OnBossKillTrigger()
     frame:Show()
     UIFrameFadeIn(frame, FADE_IN_SECONDS, 0, 1)
     popupHideTimer = C_Timer.NewTimer(POPUP_HOLD_SECONDS, fadeOutThenHide)
+end
+
+-- ─── Drag + lock (Task 9) ──────────────────────────────────────────────────
+
+local function persistPosition()
+    if not frame then return end
+    local State = NS.State
+    if not State then return end
+    local point, _, relPoint, x, y = frame:GetPoint(1)
+    local cfg = State.Config()
+    cfg.overlay_position.anchor = point
+    cfg.overlay_position.relAnchor = relPoint
+    cfg.overlay_position.x = x
+    cfg.overlay_position.y = y
+end
+
+function Overlay.RefreshDraggable()
+    if not frame then return end
+    local State = NS.State
+    if not State then return end
+    local cfg = State.Config()
+    local locked = cfg.overlay_position.locked
+    frame:EnableMouse(not locked)
+    if locked then
+        frame:SetScript("OnDragStart", nil)
+        frame:SetScript("OnDragStop", nil)
+        frame:RegisterForDrag()
+    else
+        frame:RegisterForDrag("LeftButton")
+        frame:SetScript("OnDragStart", function(self) self:StartMoving() end)
+        frame:SetScript("OnDragStop", function(self)
+            self:StopMovingOrSizing()
+            persistPosition()
+        end)
+    end
+end
+
+function Overlay.ResetPosition()
+    local State = NS.State
+    if not State then return end
+    local cfg = State.Config()
+    cfg.overlay_position.anchor = "TOPRIGHT"
+    cfg.overlay_position.relAnchor = "TOPRIGHT"
+    cfg.overlay_position.x = -180
+    cfg.overlay_position.y = -200
+    if frame then
+        frame:ClearAllPoints()
+        frame:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -180, -200)
+    end
 end
 
 NS.Overlay = Overlay
