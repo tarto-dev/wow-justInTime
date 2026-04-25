@@ -347,4 +347,40 @@ function Overlay.ResetPosition()
     end
 end
 
+-- ─── Critical pulse (Task 10) ──────────────────────────────────────────────
+
+local pulseAnimation
+local pulsing = false
+
+function Overlay.PulseCritical()
+    if not frame or pulsing then return end
+    pulsing = true
+
+    if not pulseAnimation then
+        pulseAnimation = barFill:CreateAnimationGroup()
+        pulseAnimation:SetLooping("REPEAT")
+        local fadeOut = pulseAnimation:CreateAnimation("Alpha")
+        fadeOut:SetFromAlpha(1)
+        fadeOut:SetToAlpha(0.4)
+        fadeOut:SetDuration(0.5)
+        fadeOut:SetOrder(1)
+        local fadeIn = pulseAnimation:CreateAnimation("Alpha")
+        fadeIn:SetFromAlpha(0.4)
+        fadeIn:SetToAlpha(1)
+        fadeIn:SetDuration(0.5)
+        fadeIn:SetOrder(2)
+    end
+
+    barFill:SetVertexColor(1.0, 0.31, 0.31, 1)
+    pulseAnimation:Play()
+end
+
+function Overlay.StopPulse()
+    if pulseAnimation and pulsing then
+        pulseAnimation:Stop()
+        barFill:SetAlpha(1)
+    end
+    pulsing = false
+end
+
 NS.Overlay = Overlay
