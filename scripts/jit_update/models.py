@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class AffixModifier(BaseModel):
@@ -114,7 +114,15 @@ class RunDetails(BaseModel):
     time_remaining_ms: int
     weekly_modifiers: list[AffixModifier] = Field(default_factory=list)
     dungeon: DungeonInfo
-    logged_details: _LoggedDetails
+    logged_details: _LoggedDetails = Field(default_factory=_LoggedDetails)
+
+    @field_validator("logged_details", mode="before")
+    @classmethod
+    def _coerce_none_logged_details(cls, v: object) -> object:
+        """Treat a null logged_details as an empty container (no encounters)."""
+        if v is None:
+            return _LoggedDetails()
+        return v
 
     @property
     def encounters(self) -> list[Encounter]:
@@ -125,19 +133,14 @@ class RunDetails(BaseModel):
         """Return per-boss split times (relative ms), sorted by ordinal.
 
         Returns None for any boss whose encounter is not successful.
-        Length = max ordinal seen.
-
-        Raises ValueError if any encounter has ordinal < 1 (Raider.IO uses 1-based ordinals).
+        Length = max ordinal + 1 (ordinals are 0-based in the Raider.IO API).
         """
         if not self.encounters:
             return []
-        bad = [e.boss.ordinal for e in self.encounters if e.boss.ordinal < 1]
-        if bad:
-            raise ValueError(f"encounter ordinals must be >= 1, got {bad}")
         max_ordinal = max(e.boss.ordinal for e in self.encounters)
-        result: list[int | None] = [None] * max_ordinal
+        result: list[int | None] = [None] * (max_ordinal + 1)
         for enc in self.encounters:
-            idx = enc.boss.ordinal - 1
+            idx = enc.boss.ordinal
             result[idx] = enc.approximate_relative_ended_at if enc.is_success else None
         return result
 

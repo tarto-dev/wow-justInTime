@@ -5,8 +5,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-import pytest
-
 from jit_update.models import (
     AffixModifier,
     BossInfo,
@@ -26,7 +24,7 @@ def test_run_parses_minimal_payload(load_fixture: Callable[[str], dict[str, Any]
     assert run.clear_time_ms == 1742595
     assert run.num_chests == 1
     assert run.is_timed is True
-    assert {m.slug for m in run.weekly_modifiers} == {"fortified", "xalataths-guile"}
+    assert {m.slug for m in run.weekly_modifiers} == {"fortified", "tyrannical", "xalataths-guile"}
 
 
 def test_run_is_timed_false_when_no_chests(load_fixture: Callable[[str], dict[str, Any]]) -> None:
@@ -89,7 +87,7 @@ def test_run_affix_combo_method_delegates_to_helper(
 ) -> None:
     raw = load_fixture("run_sample.json")
     run = Run.model_validate(raw["run"])
-    assert run.affix_combo() == "fortified-xalataths-guile"
+    assert run.affix_combo() == "fortified-tyrannical-xalataths-guile"
 
 
 def test_run_details_empty_encounters_returns_empty_list() -> None:
@@ -117,7 +115,8 @@ def test_run_details_empty_encounters_returns_empty_list() -> None:
     assert details.boss_splits_ms() == []
 
 
-def test_run_details_invalid_ordinal_raises() -> None:
+def test_run_details_ordinal_zero_is_valid() -> None:
+    """Ordinal 0 is the first boss in the 0-based Raider.IO API scheme."""
     raw = {
         "season": "season-mn-1",
         "keystone_run_id": 1,
@@ -149,5 +148,5 @@ def test_run_details_invalid_ordinal_raises() -> None:
         },
     }
     details = RunDetails.model_validate(raw)
-    with pytest.raises(ValueError, match="ordinals must be >= 1"):
-        details.boss_splits_ms()
+    splits = details.boss_splits_ms()
+    assert splits == [100000]

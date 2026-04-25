@@ -40,6 +40,7 @@ def _runs_payload(level: int, run_ids: list[int]) -> dict[str, Any]:
                     "time_remaining_ms": 100000 - i * 5000,
                     "weekly_modifiers": [
                         {"id": 10, "slug": "fortified"},
+                        {"id": 9, "slug": "tyrannical"},
                         {"id": 147, "slug": "xalataths-guile"},
                     ],
                 },
@@ -59,6 +60,7 @@ def _details_payload(run_id: int) -> dict[str, Any]:
         "time_remaining_ms": 58000,
         "weekly_modifiers": [
             {"id": 10, "slug": "fortified"},
+            {"id": 9, "slug": "tyrannical"},
             {"id": 147, "slug": "xalataths-guile"},
         ],
         "dungeon": {
@@ -80,7 +82,7 @@ def _details_payload(run_id: int) -> dict[str, Any]:
                     "boss": {
                         "slug": "boss1",
                         "name": "Boss 1",
-                        "ordinal": 1,
+                        "ordinal": 0,
                         "wowEncounterId": 1001,
                     },
                 },
@@ -92,7 +94,7 @@ def _details_payload(run_id: int) -> dict[str, Any]:
                     "boss": {
                         "slug": "boss2",
                         "name": "Boss 2",
-                        "ordinal": 2,
+                        "ordinal": 1,
                         "wowEncounterId": 1002,
                     },
                 },
@@ -104,7 +106,7 @@ def _details_payload(run_id: int) -> dict[str, Any]:
                     "boss": {
                         "slug": "boss3",
                         "name": "Boss 3",
-                        "ordinal": 3,
+                        "ordinal": 2,
                         "wowEncounterId": 1003,
                     },
                 },
@@ -116,7 +118,7 @@ def _details_payload(run_id: int) -> dict[str, Any]:
                     "boss": {
                         "slug": "boss4",
                         "name": "Boss 4",
-                        "ordinal": 4,
+                        "ordinal": 3,
                         "wowEncounterId": 1004,
                     },
                 },
@@ -193,5 +195,5 @@ schema_version = 1
     assert "JustInTimeData = {" in out
     assert '["algethar-academy"]' in out
     assert "[12]" in out
-    assert '["fortified-xalataths-guile"]' in out
+    assert '["fortified-tyrannical-xalataths-guile"]' in out
     assert "boss_splits_ms = { 280000, 740000, 1200000, 1742000 }" in out

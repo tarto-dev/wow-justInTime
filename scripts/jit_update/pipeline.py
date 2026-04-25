@@ -171,12 +171,13 @@ DEFAULT_AFFIX_MAP: dict[int, str] = {
 def _affix_combos_to_query(affix_map: dict[int, str]) -> list[str]:
     """Generate the affix combos to query for Midnight Season 1.
 
-    Rotation: Fortified | Tyrannical, paired with the seasonal Xal'atath's Guile.
+    MN1 activates Fortified, Tyrannical, and Xal'atath's Guile simultaneously
+    every week (no alternation). There is only one combo.
+
     Returns the alphabetically-sorted combo slugs.
     """
-    seasonal = ["xalataths-guile"]
-    rotation = ["fortified", "tyrannical"]
-    return sorted(["-".join(sorted([r, *seasonal])) for r in rotation])
+    all_slugs = sorted(affix_map.values())
+    return ["-".join(all_slugs)]
 
 
 def build_document(

@@ -6,6 +6,7 @@
 ## SavedVariables: JustInTimeDB
 
 Locales.lua
+Data.lua
 Config.lua
 Core.lua
 UI.lua

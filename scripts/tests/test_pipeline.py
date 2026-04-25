@@ -50,6 +50,7 @@ def _make_run_payload(
             "weekly_modifiers": affixes
             or [
                 {"id": 10, "slug": "fortified", "name": "Fortified"},
+                {"id": 9, "slug": "tyrannical", "name": "Tyrannical"},
                 {"id": 147, "slug": "xalataths-guile", "name": "Xal'atath's Guile"},
             ],
         },
@@ -84,7 +85,7 @@ def test_collect_timed_runs_filters_by_level_and_affixes() -> None:
         region="world",
         dungeon="algethar-academy",
         target_level=12,
-        target_affix_combo="fortified-xalataths-guile",
+        target_affix_combo="fortified-tyrannical-xalataths-guile",
         min_sample=10,
         max_pages=5,
     )
@@ -103,7 +104,7 @@ def test_collect_stops_when_min_sample_reached() -> None:
         region="world",
         dungeon="algethar-academy",
         target_level=12,
-        target_affix_combo="fortified-xalataths-guile",
+        target_affix_combo="fortified-tyrannical-xalataths-guile",
         min_sample=10,
         max_pages=5,
     )
@@ -130,7 +131,7 @@ def test_collect_excludes_untimed_runs() -> None:
         region="world",
         dungeon="algethar-academy",
         target_level=12,
-        target_affix_combo="fortified-xalataths-guile",
+        target_affix_combo="fortified-tyrannical-xalataths-guile",
         min_sample=10,
         max_pages=5,
     )
@@ -168,7 +169,7 @@ def test_collect_raises_on_malformed_runs_payload() -> None:
             region="world",
             dungeon="algethar-academy",
             target_level=12,
-            target_affix_combo="fortified-xalataths-guile",
+            target_affix_combo="fortified-tyrannical-xalataths-guile",
             min_sample=10,
             max_pages=5,
         )
@@ -186,7 +187,7 @@ def test_collect_raises_when_rankings_is_not_a_list() -> None:
             region="world",
             dungeon="algethar-academy",
             target_level=12,
-            target_affix_combo="fortified-xalataths-guile",
+            target_affix_combo="fortified-tyrannical-xalataths-guile",
             min_sample=10,
             max_pages=5,
         )
@@ -212,7 +213,7 @@ def _make_details_payload(splits_ms: list[int], num_bosses: int = 4) -> dict[str
             "boss": {
                 "slug": f"boss{i + 1}",
                 "name": f"Boss {i + 1}",
-                "ordinal": i + 1,
+                "ordinal": i,
                 "wowEncounterId": 1000 + i,
             },
         }
@@ -228,6 +229,7 @@ def _make_details_payload(splits_ms: list[int], num_bosses: int = 4) -> dict[str
         "time_remaining_ms": 0,
         "weekly_modifiers": [
             {"id": 10, "slug": "fortified"},
+            {"id": 9, "slug": "tyrannical"},
             {"id": 147, "slug": "xalataths-guile"},
         ],
         "dungeon": {
@@ -381,10 +383,10 @@ def test_build_document_assembles_meta_and_dungeons() -> None:
     assert aa["challenge_mode_id"] == 402
     assert aa["timer_ms"] == 1800000
     assert aa["num_bosses"] == 4
-    cell = aa["levels"][12]["fortified-xalataths-guile"]
+    cell = aa["levels"][12]["fortified-tyrannical-xalataths-guile"]
     assert cell["sample_size"] >= 1
     assert cell["boss_splits_ms"] == [280000, 740000, 1200000, 1742000]
-    assert {b["ordinal"] for b in aa["bosses"]} == {1, 2, 3, 4}
+    assert {b["ordinal"] for b in aa["bosses"]} == {0, 1, 2, 3}
 
 
 def test_build_document_skips_cells_with_insufficient_sample() -> None:
