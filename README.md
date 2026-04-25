@@ -1,6 +1,6 @@
 # JustInTime
 
-Lightweight raid timing helper for WoW Retail
+Mythic+ pace tracker — know if you'll deplete before it's too late
 
 **Author**: Claralicious_
 **Interface**: WoW Retail (Midnight, 12.0)
