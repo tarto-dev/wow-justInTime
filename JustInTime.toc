@@ -1,11 +1,19 @@
 ## Interface: 120001
-## Title: JustInTime
+## Title: |cFFFFCC66J|r|cFFFFBB60u|r|cFFFFAA5As|r|cFFFF9955t|r|cFFFF884FI|r|cFFFF7749n|r|cFFFF6644T|r|cFFFF553Ei|r|cFFFF4439m|r|cFFFF3333e|r
+## IconTexture: Interface\Icons\Spell_Nature_LightningBolt
 ## Notes: Lightweight raid timing helper for WoW Retail
+## Notes-frFR: Tracker de tempo pour clés mythique+
 ## Author: Claralicious_
 ## Version: 0.1.0
+## X-Category: Mythic+
 ## SavedVariables: JustInTimeDB
 
 Locales.lua
+Data.lua
 Config.lua
+State.lua
+PaceEngine.lua
+EventTracker.lua
+ChatPrinter.lua
+Overlay.lua
 Core.lua
-UI.lua
