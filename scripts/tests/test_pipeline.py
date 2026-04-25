@@ -270,3 +270,36 @@ def test_compute_reference_cell_handles_missing_boss_split() -> None:
 def test_compute_reference_cell_empty_returns_none() -> None:
     cell = compute_reference_cell([], num_bosses=4)
     assert cell is None
+
+
+def test_compute_reference_cell_interpolates_boss_with_no_data() -> None:
+    """If boss N has no successful encounter in ANY run, backfill via linear interp."""
+    a = _make_details_payload([280000, 740000, 1200000, 1742000])
+    b = _make_details_payload([300000, 760000, 1220000, 1760000])
+    # Force boss 2 to fail in both runs → no data for boss 2 at all
+    a["logged_details"]["encounters"][1]["is_success"] = False
+    b["logged_details"]["encounters"][1]["is_success"] = False
+    details = [
+        RunDetails.model_validate(a),
+        RunDetails.model_validate(b),
+    ]
+    cell = compute_reference_cell(details, num_bosses=4)
+    assert cell is not None
+    # Boss 1 median: (280000 + 300000)/2 = 290000
+    # Boss 3 median: (1200000 + 1220000)/2 = 1210000
+    # Boss 2 backfilled = (290000 + 1210000) // 2 = 750000
+    assert cell.boss_splits_ms[0] == 290000
+    assert cell.boss_splits_ms[1] == 750000
+    assert cell.boss_splits_ms[2] == 1210000
+
+
+def test_compute_reference_cell_interpolates_trailing_boss_against_clear_time() -> None:
+    """If the last boss has no data, backfill against clear_time_median."""
+    a = _make_details_payload([280000, 740000, 1200000, 1742000])
+    a["logged_details"]["encounters"][3]["is_success"] = False
+    details = [RunDetails.model_validate(a)]
+    cell = compute_reference_cell(details, num_bosses=4)
+    assert cell is not None
+    # Boss 4 has no data → next_known falls back to clear_time_median = 1742000
+    # prev_known = 1200000 (boss 3) → (1200000 + 1742000) // 2 = 1471000
+    assert cell.boss_splits_ms[3] == 1471000

@@ -106,6 +106,11 @@ def compute_reference_cell(details: list[RunDetails], num_bosses: int) -> Refere
     Returns ``None`` if no input runs. For bosses with no successful encounter
     in any input run, the median is backfilled by linear interpolation between
     known neighboring bosses (or against ``clear_time_median`` at the end).
+
+    If every boss has no successful encounter across all runs, the backfill
+    produces a synthetic monotonically increasing ladder anchored to
+    ``clear_time_median``. This is plausible filler rather than meaningful
+    data; callers should treat extremely-uncovered cells with skepticism.
     """
     if not details:
         return None
@@ -114,8 +119,11 @@ def compute_reference_cell(details: list[RunDetails], num_bosses: int) -> Refere
     for d in details:
         splits = d.boss_splits_ms()
         for idx in range(num_bosses):
-            if idx < len(splits) and splits[idx] is not None:
-                per_boss[idx].append(int(splits[idx]))  # type: ignore[arg-type]
+            if idx >= len(splits):
+                continue
+            val = splits[idx]
+            if val is not None:
+                per_boss[idx].append(int(val))
 
     boss_medians: list[int] = []
     for idx in range(num_bosses):
