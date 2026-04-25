@@ -24,7 +24,7 @@ local fr = {
     SLASH_UNKNOWN         = "Commande inconnue : %s. /jit help",
 
     REF_NONE              = "réf. indispo",
-    REF_PUBLIC_LABEL      = "P10 publique",
+    REF_PUBLIC_LABEL      = "ref publique",
     REF_PERSO_FASTEST     = "Mes runs (la + rapide)",
     REF_PERSO_RECENT      = "Mes runs (la + récente)",
     REF_PERSO_MEDIAN      = "Mes runs (médiane)",
@@ -48,7 +48,7 @@ local fr = {
     OVERLAY_REF_NONE      = "réf indispo",
 
     PANEL_REF_HEADER      = "Référence",
-    PANEL_REF_PUBLIC      = "Publique (P10 worst-timed)",
+    PANEL_REF_PUBLIC      = "Publique (les pires runs timées)",
     PANEL_REF_FASTEST     = "Mes runs : la plus rapide",
     PANEL_REF_RECENT      = "Mes runs : la plus récente",
     PANEL_REF_MEDIAN      = "Mes runs : médiane",
@@ -100,7 +100,7 @@ local en = {
     SLASH_UNKNOWN         = "Unknown command: %s. /jit help",
 
     REF_NONE              = "ref unavailable",
-    REF_PUBLIC_LABEL      = "P10 public",
+    REF_PUBLIC_LABEL      = "public ref",
     REF_PERSO_FASTEST     = "My runs (fastest)",
     REF_PERSO_RECENT      = "My runs (most recent)",
     REF_PERSO_MEDIAN      = "My runs (median)",
@@ -124,7 +124,7 @@ local en = {
     OVERLAY_REF_NONE      = "ref unavailable",
 
     PANEL_REF_HEADER      = "Reference",
-    PANEL_REF_PUBLIC      = "Public (P10 worst-timed)",
+    PANEL_REF_PUBLIC      = "Public (slowest timed runs)",
     PANEL_REF_FASTEST     = "My runs: fastest",
     PANEL_REF_RECENT      = "My runs: most recent",
     PANEL_REF_MEDIAN      = "My runs: median",
