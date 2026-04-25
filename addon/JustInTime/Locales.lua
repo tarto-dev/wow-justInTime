@@ -73,11 +73,11 @@ local fr = {
     PANEL_DATA_HEADER     = "Données",
     PANEL_DATA_GENERATED  = "Référence générée le : %s (il y a %d jours) %s",
     PANEL_DATA_RESET_RUNS = "Effacer mes runs (confirmation)",
-    PANEL_DATA_NONE       = "Pas de Data.lua",
+    PANEL_DATA_NONE       = "Aucune référence chargée",
 
-    DATA_STALE            = "⚠ données vieilles de %d jours, considère relancer le script",
-    DATA_MISSING          = "⚠ Data.lua manquant — lance le script Python",
-    DATA_SCHEMA_INVALID   = "⚠ Data.lua schéma invalide — overlay public désactivé",
+    DATA_STALE            = "⚠ données de référence vieilles de %d jours",
+    DATA_MISSING          = "⚠ référence indisponible — mode publique désactivé",
+    DATA_SCHEMA_INVALID   = "⚠ référence invalide — mode publique désactivé",
 
     NO_PERSO_RUNS         = "pas encore de run perso ici, fallback sur public",
     NO_REF_AT_ALL         = "réf indispo (cellule vide)",
@@ -149,11 +149,11 @@ local en = {
     PANEL_DATA_HEADER     = "Data",
     PANEL_DATA_GENERATED  = "Reference generated at: %s (%d days ago) %s",
     PANEL_DATA_RESET_RUNS = "Erase my runs (confirmation)",
-    PANEL_DATA_NONE       = "No Data.lua",
+    PANEL_DATA_NONE       = "No reference loaded",
 
-    DATA_STALE            = "⚠ data is %d days old, consider regenerating",
-    DATA_MISSING          = "⚠ Data.lua missing — run the Python script",
-    DATA_SCHEMA_INVALID   = "⚠ Data.lua schema invalid — public overlay disabled",
+    DATA_STALE            = "⚠ reference data is %d days old",
+    DATA_MISSING          = "⚠ reference unavailable — public mode disabled",
+    DATA_SCHEMA_INVALID   = "⚠ reference invalid — public mode disabled",
 
     NO_PERSO_RUNS         = "no personal runs here yet, falling back to public",
     NO_REF_AT_ALL         = "ref unavailable (empty cell)",
