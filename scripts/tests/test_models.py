@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+import pytest
+
 from jit_update.models import (
     AffixModifier,
     BossInfo,
@@ -80,3 +82,72 @@ def test_encounter_validates_required_fields() -> None:
     enc = Encounter.model_validate(raw)
     assert enc.boss.slug == "x"
     assert enc.is_success is True
+
+
+def test_run_affix_combo_method_delegates_to_helper(
+    load_fixture: Callable[[str], dict[str, Any]],
+) -> None:
+    raw = load_fixture("run_sample.json")
+    run = Run.model_validate(raw["run"])
+    assert run.affix_combo() == "fortified-xalataths-guile"
+
+
+def test_run_details_empty_encounters_returns_empty_list() -> None:
+    raw = {
+        "season": "season-mn-1",
+        "keystone_run_id": 1,
+        "mythic_level": 12,
+        "clear_time_ms": 1000000,
+        "keystone_time_ms": 1800000,
+        "num_chests": 1,
+        "time_remaining_ms": 800000,
+        "weekly_modifiers": [],
+        "dungeon": {
+            "id": 1,
+            "name": "Test Dungeon",
+            "short_name": "TD",
+            "slug": "test-dungeon",
+            "map_challenge_mode_id": 1,
+            "keystone_timer_ms": 1800000,
+            "num_bosses": 4,
+        },
+        "logged_details": {"encounters": []},
+    }
+    details = RunDetails.model_validate(raw)
+    assert details.boss_splits_ms() == []
+
+
+def test_run_details_invalid_ordinal_raises() -> None:
+    raw = {
+        "season": "season-mn-1",
+        "keystone_run_id": 1,
+        "mythic_level": 12,
+        "clear_time_ms": 1000000,
+        "keystone_time_ms": 1800000,
+        "num_chests": 1,
+        "time_remaining_ms": 800000,
+        "weekly_modifiers": [],
+        "dungeon": {
+            "id": 1,
+            "name": "Test Dungeon",
+            "short_name": "TD",
+            "slug": "test-dungeon",
+            "map_challenge_mode_id": 1,
+            "keystone_timer_ms": 1800000,
+            "num_bosses": 4,
+        },
+        "logged_details": {
+            "encounters": [
+                {
+                    "duration_ms": 100000,
+                    "is_success": True,
+                    "approximate_relative_started_at": 0,
+                    "approximate_relative_ended_at": 100000,
+                    "boss": {"slug": "x", "name": "X", "ordinal": 0},
+                }
+            ]
+        },
+    }
+    details = RunDetails.model_validate(raw)
+    with pytest.raises(ValueError, match="ordinals must be >= 1"):
+        details.boss_splits_ms()

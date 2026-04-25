@@ -28,7 +28,7 @@ def affix_combo_slug(modifiers: list[AffixModifier]) -> str:
 class BossInfo(BaseModel):
     """Static info about a boss in a dungeon."""
 
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
     slug: str
     name: str
@@ -126,15 +126,19 @@ class RunDetails(BaseModel):
 
         Returns None for any boss whose encounter is not successful.
         Length = max ordinal seen.
+
+        Raises ValueError if any encounter has ordinal < 1 (Raider.IO uses 1-based ordinals).
         """
         if not self.encounters:
             return []
+        bad = [e.boss.ordinal for e in self.encounters if e.boss.ordinal < 1]
+        if bad:
+            raise ValueError(f"encounter ordinals must be >= 1, got {bad}")
         max_ordinal = max(e.boss.ordinal for e in self.encounters)
         result: list[int | None] = [None] * max_ordinal
         for enc in self.encounters:
             idx = enc.boss.ordinal - 1
-            if 0 <= idx < max_ordinal:
-                result[idx] = enc.approximate_relative_ended_at if enc.is_success else None
+            result[idx] = enc.approximate_relative_ended_at if enc.is_success else None
         return result
 
 
