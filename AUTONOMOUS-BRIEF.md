@@ -19,18 +19,35 @@ Livrer l'addon **JustInTime** complet et jouable à partir du spec existant. L'u
 - Commits conventional + gitmoji. Atomiques.
 - Publication master :
   ```bash
+  # Save addon files outside the worktree so they survive branch switching
+  mkdir -p /tmp/jit-release && cp -r addon/JustInTime/. /tmp/jit-release/
+
   git checkout master
-  git rm -rf . 2>/dev/null
-  git checkout main -- addon/JustInTime
-  mv addon/JustInTime/* .
-  rm -rf addon
-  git add -A
+  # Remove tracked files from current master tree
+  git rm -r $(git ls-files) 2>/dev/null || true
+
+  # Drop in the addon files at root
+  cp -r /tmp/jit-release/. .
+
+  # CRITICAL — explicit staging only. Do NOT `git add -A` because master is
+  # orphan and has no .gitignore; -A would aspirate the entire working tree
+  # including scripts/, docs/, .superpowers/, .cache/, __pycache__/, etc.
+  git add JustInTime.toc Locales.lua Data.lua Config.lua State.lua \
+          PaceEngine.lua EventTracker.lua ChatPrinter.lua Overlay.lua Core.lua
+
+  git status --short  # sanity-check: only the addon files staged
   git commit -m "🎉 feat: release vX.Y.Z"
   git tag -a vX.Y.Z -m "Release vX.Y.Z"
   git push origin master
   git push origin vX.Y.Z
   git checkout main
+  rm -rf /tmp/jit-release
   ```
+
+  **Why explicit staging**: `git add -A` on the master orphan branch silently
+  staged 935 files in the v0.1.0 candidate (Python source, HTTP cache, specs,
+  bytecode, etc.) because master has no `.gitignore`. The bad commit was
+  force-push-corrected; never use `git add -A` on master.
 
 ## Notifications Discord
 
