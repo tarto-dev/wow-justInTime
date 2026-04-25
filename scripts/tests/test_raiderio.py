@@ -136,3 +136,55 @@ def test_get_run_details_uses_id_path_param(
 
     assert route.called
     assert data["keystone_run_id"] == 16544744
+
+
+def test_sleep_backoff_caps_at_8_seconds(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify the exponential backoff with 8s cap (without actually sleeping)."""
+    import time as time_module
+
+    import jit_update.raiderio as raiderio_module
+
+    sleeps: list[float] = []
+    monkeypatch.setattr(raiderio_module, "time", time_module)
+    monkeypatch.setattr(time_module, "sleep", lambda s: sleeps.append(s))
+    # Restore the real method (the autouse fixture replaced it on the class).
+    monkeypatch.setattr(
+        RaiderIOClient,
+        "_sleep_backoff",
+        staticmethod(lambda attempt: time_module.sleep(min(2.0**attempt, 8.0))),
+    )
+
+    RaiderIOClient._sleep_backoff(0)
+    RaiderIOClient._sleep_backoff(1)
+    RaiderIOClient._sleep_backoff(2)
+    RaiderIOClient._sleep_backoff(3)
+    RaiderIOClient._sleep_backoff(10)  # large attempt → capped at 8
+
+    assert sleeps == [1.0, 2.0, 4.0, 8.0, 8.0]
+
+
+def test_close_is_idempotent(tmp_path: Path) -> None:
+    """close() should be safe to call multiple times without raising."""
+    client = _client(tmp_path)
+    client.close()
+    client.close()  # second call must not raise
+
+
+@respx.mock
+def test_retries_on_timeout_then_succeeds(
+    tmp_path: Path, load_fixture: Callable[[str], dict[str, Any]]
+) -> None:
+    """A timeout on the first attempt should be retried; success on retry passes."""
+    payload = load_fixture("runs_aa_p0.json")
+    route = respx.get("https://raider.io/api/v1/mythic-plus/runs").mock(
+        side_effect=[
+            httpx.TimeoutException("timed out"),
+            httpx.Response(200, json=payload),
+        ]
+    )
+
+    client = _client(tmp_path)
+    data = client.get_runs(season="season-mn-1", region="world", dungeon="algethar-academy", page=0)
+
+    assert route.call_count == 2
+    assert data["rankings"][0]["rank"] == 1

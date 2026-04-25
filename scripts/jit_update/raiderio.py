@@ -20,6 +20,9 @@ class RaiderIOClient:
     """Thin wrapper around Raider.IO endpoints with rate limit + cache + retry.
 
     Read-only. Stateless beyond the cache + rate limiter passed at construction.
+
+    `max_retries` counts *additional* retries after the first attempt.
+    Default 3 means up to 4 total HTTP calls per logical request.
     """
 
     def __init__(
@@ -52,7 +55,10 @@ class RaiderIOClient:
 
         cached = self._cache.get(url)
         if cached is not None:
-            decoded_cached: dict[str, Any] = json.loads(cached.decode("utf-8"))
+            try:
+                decoded_cached: dict[str, Any] = json.loads(cached.decode("utf-8"))
+            except json.JSONDecodeError as exc:
+                raise RaiderIOError(f"corrupt cache for {url}") from exc
             return decoded_cached
 
         last_exc: Exception | None = None
@@ -67,8 +73,11 @@ class RaiderIOClient:
                 if resp.status_code >= 400:
                     raise RaiderIOError(f"client error {resp.status_code} on {url}")
                 payload = resp.content
+                try:
+                    decoded_fresh: dict[str, Any] = json.loads(payload.decode("utf-8"))
+                except json.JSONDecodeError as exc:
+                    raise RaiderIOError(f"invalid JSON from {url}") from exc
                 self._cache.set(url, payload)
-                decoded_fresh: dict[str, Any] = json.loads(payload.decode("utf-8"))
                 return decoded_fresh
             except httpx.TimeoutException as exc:
                 last_exc = exc
