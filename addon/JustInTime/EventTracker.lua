@@ -5,7 +5,11 @@ local addonName, NS = ...
 local EventTracker = {}
 
 local frame = CreateFrame("Frame")
-local sessionStartTime = nil  -- GetTime() at CHALLENGE_MODE_START (relative seconds float)
+local challengeTimerID = nil
+
+-- LE_WORLD_ELAPSED_TIMER_TYPE_CHALLENGE_MODE = 1. Hardcoded to avoid relying
+-- on the global constant, which has been moved/renamed across patches.
+local TIMER_TYPE_CHALLENGE_MODE = 1
 
 -- Resolve the boss ordinal for a given encounter ID by looking up Data.lua.
 local function lookupOrdinalByEncounterId(dungeon_slug, encounterID)
@@ -16,6 +20,20 @@ local function lookupOrdinalByEncounterId(dungeon_slug, encounterID)
     for _, b in ipairs(dg.bosses) do
         if b.wow_encounter_id == encounterID then
             return b.ordinal
+        end
+    end
+    return nil
+end
+
+-- Scan active world timers for the challenge-mode one. Used after /reload
+-- (WORLD_STATE_TIMER_START already fired before our handler was registered)
+-- and as a lazy recovery path inside GetElapsedMs.
+local function findActiveChallengeTimer()
+    if not GetWorldElapsedTimers then return nil end
+    for _, timerID in ipairs({ GetWorldElapsedTimers() }) do
+        local _, timerType = GetWorldElapsedTime(timerID)
+        if timerType == TIMER_TYPE_CHALLENGE_MODE then
+            return timerID
         end
     end
     return nil
@@ -33,7 +51,10 @@ local function onChallengeModeStart()
 
     local slug = PaceEngine.MapIdToSlug(mapId) or ("unknown-" .. tostring(mapId))
     local combo = PaceEngine.ResolveAffixCombo(affixIds)
-    sessionStartTime = GetTime()
+    -- The official challenge timer hasn't started yet at this point (10s
+    -- ready countdown). WORLD_STATE_TIMER_START will hand us the timerID,
+    -- and GetElapsedMs() lazy-scans as a fallback.
+    challengeTimerID = challengeTimerID or findActiveChallengeTimer()
     State.SetActiveSession(slug, level, combo, time())
 
     if NS.ChatPrinter and NS.ChatPrinter.AnnounceLevelFallbackIfNeeded then
@@ -83,7 +104,7 @@ local function onChallengeModeCompleted()
     local depleted = not timed
 
     local run = State.FinalizeActiveSession(timed, depleted, clear_time_ms)
-    sessionStartTime = nil
+    challengeTimerID = nil
 
     if NS.ChatPrinter and NS.ChatPrinter.OnKeyEnd and run then
         NS.ChatPrinter.OnKeyEnd(run)
@@ -100,7 +121,7 @@ local function onChallengeModeReset()
     local State = NS.State
     if not State then return end
     State.DiscardActiveSession()
-    sessionStartTime = nil
+    challengeTimerID = nil
 
     if NS.Overlay and NS.Overlay.Hide then
         NS.Overlay.Hide()
@@ -110,16 +131,25 @@ local function onChallengeModeReset()
     end
 end
 
+local function onWorldStateTimerStart(timerID)
+    if not timerID then return end
+    local _, timerType = GetWorldElapsedTime(timerID)
+    if timerType == TIMER_TYPE_CHALLENGE_MODE then
+        challengeTimerID = timerID
+    end
+end
+
+local function onWorldStateTimerStop(timerID)
+    if challengeTimerID and timerID == challengeTimerID then
+        challengeTimerID = nil
+    end
+end
+
 local function onPlayerLogin()
     if C_ChallengeMode.IsChallengeModeActive() then
-        local State = NS.State
-        if not State then return end
-        local s = State.GetActiveSession()
-        if s and s.started_epoch then
-            local now = time()
-            local elapsedSec = now - s.started_epoch
-            sessionStartTime = GetTime() - elapsedSec
-        end
+        -- After /reload mid-key, WORLD_STATE_TIMER_START already fired before
+        -- our handler was registered, so scan the live timers list directly.
+        challengeTimerID = findActiveChallengeTimer()
         if NS.ChatPrinter and NS.ChatPrinter.AnnounceLevelFallbackIfNeeded then
             NS.ChatPrinter.AnnounceLevelFallbackIfNeeded()
         end
@@ -139,6 +169,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
         onChallengeModeCompleted()
     elseif event == "CHALLENGE_MODE_RESET" then
         onChallengeModeReset()
+    elseif event == "WORLD_STATE_TIMER_START" then
+        onWorldStateTimerStart(...)
+    elseif event == "WORLD_STATE_TIMER_STOP" then
+        onWorldStateTimerStop(...)
     elseif event == "PLAYER_LOGIN" then
         onPlayerLogin()
     elseif event == "PLAYER_LOGOUT" then
@@ -151,25 +185,27 @@ function EventTracker.Init()
     frame:RegisterEvent("ENCOUNTER_END")
     frame:RegisterEvent("CHALLENGE_MODE_COMPLETED")
     frame:RegisterEvent("CHALLENGE_MODE_RESET")
+    frame:RegisterEvent("WORLD_STATE_TIMER_START")
+    frame:RegisterEvent("WORLD_STATE_TIMER_STOP")
     frame:RegisterEvent("PLAYER_LOGIN")
     frame:RegisterEvent("PLAYER_LOGOUT")
 end
 
+-- Read the elapsed seconds straight from Blizzard's official challenge timer
+-- (the same one driving the in-game clock). It already accounts for the 10s
+-- ready countdown AND the cumulative death penalty, so we don't compose our
+-- own value. Returns 0 when no timer is active or the API is unavailable.
 function EventTracker.GetElapsedMs()
-    if not sessionStartTime then return 0 end
-    local raw = math.floor((GetTime() - sessionStartTime) * 1000)
-    -- M+ death penalty varies by season/key level/affixes (e.g. Xal'atath's
-    -- Guile bumps it from 5s to 15s on +12+). We read the cumulative timeLost
-    -- straight from the Blizzard API rather than computing it ourselves, so
-    -- our elapsed matches the in-game timer regardless of modifiers and our
-    -- splits stay comparable to leaderboard-sourced reference data.
-    if C_ChallengeMode and C_ChallengeMode.GetDeathCount then
-        local _, timeLost = C_ChallengeMode.GetDeathCount()
-        if timeLost and timeLost > 0 then
-            raw = raw + math.floor(timeLost * 1000)
-        end
+    if not challengeTimerID then
+        challengeTimerID = findActiveChallengeTimer()
     end
-    return raw
+    if not challengeTimerID then return 0 end
+    local elapsed, timerType = GetWorldElapsedTime(challengeTimerID)
+    if not elapsed or timerType ~= TIMER_TYPE_CHALLENGE_MODE then
+        challengeTimerID = nil
+        return 0
+    end
+    return math.floor(elapsed * 1000)
 end
 
 NS.EventTracker = EventTracker
