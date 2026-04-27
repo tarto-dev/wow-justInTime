@@ -1,6 +1,23 @@
 JustInTime — Changelog
 =======================
 
+v0.3.1 — Sync elapsed timer with Blizzard's official clock (2026-04-27)
+-----------------------------------------------------------------------
+
+Fixes:
+- The "Écoulé" value now reads straight from Blizzard's challenge timer
+  (`GetWorldElapsedTime`) instead of being computed from `GetTime()` at
+  CHALLENGE_MODE_START. The previous approach was running ~8-10s ahead
+  because CHALLENGE_MODE_START fires when the keystone is inserted, before
+  the in-game ready countdown ends. The addon timer is now identical to
+  the in-game one to the second, including the death penalty (which the
+  official API already includes — the manual addition was removed to avoid
+  double-counting). After /reload mid-key the addon scans active world
+  timers via `GetWorldElapsedTimers` to recover the live timer ID.
+- Boss splits recorded prior to v0.3.1 are biased by the same +8-10s
+  offset and are not retroactively corrected. Use `/jit reset` if you want
+  a clean slate for comparison against future runs.
+
 v0.3.0 — Cross-level fallback + death-adjusted timer (2026-04-27)
 ------------------------------------------------------------------
 
