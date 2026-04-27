@@ -53,7 +53,7 @@ local function onEncounterEnd(encounterID, _encounterName, _difficultyID, _group
     local s = State.GetActiveSession()
     if not s then return end
 
-    local elapsed_ms = math.floor((GetTime() - (sessionStartTime or GetTime())) * 1000)
+    local elapsed_ms = EventTracker.GetElapsedMs()
     local ord = lookupOrdinalByEncounterId(s.dungeon_slug, encounterID)
     if ord ~= nil then
         State.RecordBossKill(ord, elapsed_ms)
@@ -78,7 +78,7 @@ local function onChallengeModeCompleted()
     if not s then return end
 
     local _, _, time_ms, onTime = C_ChallengeMode.GetCompletionInfo()
-    local clear_time_ms = time_ms or math.floor((GetTime() - (sessionStartTime or GetTime())) * 1000)
+    local clear_time_ms = time_ms or EventTracker.GetElapsedMs()
     local timed = onTime == true
     local depleted = not timed
 
@@ -157,7 +157,19 @@ end
 
 function EventTracker.GetElapsedMs()
     if not sessionStartTime then return 0 end
-    return math.floor((GetTime() - sessionStartTime) * 1000)
+    local raw = math.floor((GetTime() - sessionStartTime) * 1000)
+    -- M+ death penalty varies by season/key level/affixes (e.g. Xal'atath's
+    -- Guile bumps it from 5s to 15s on +12+). We read the cumulative timeLost
+    -- straight from the Blizzard API rather than computing it ourselves, so
+    -- our elapsed matches the in-game timer regardless of modifiers and our
+    -- splits stay comparable to leaderboard-sourced reference data.
+    if C_ChallengeMode and C_ChallengeMode.GetDeathCount then
+        local _, timeLost = C_ChallengeMode.GetDeathCount()
+        if timeLost and timeLost > 0 then
+            raw = raw + math.floor(timeLost * 1000)
+        end
+    end
+    return raw
 end
 
 NS.EventTracker = EventTracker
