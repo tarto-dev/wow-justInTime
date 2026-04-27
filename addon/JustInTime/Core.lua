@@ -1,7 +1,6 @@
 local addonName, NS = ...
 
-local TAG  = (NS.Util and NS.Util.TAG_INFO)  or "|cffffcc00[JIT]|r"
-local TAGD = (NS.Util and NS.Util.TAG_DEBUG) or "|cff33ff99[JIT][debug]|r"
+local TAG = (NS.Util and NS.Util.TAG_INFO) or "|cffffcc00[JIT]|r"
 
 local function L(key) return NS.L and NS.L[key] or key end
 
@@ -38,81 +37,6 @@ local function checkStaleness()
     if days > 14 then
         print(TAG .. " " .. string.format(L("DATA_STALE"), days))
     end
-end
-
--- ─── Self-tests (PaceEngine smoke) ─────────────────────────────────────────
-
-local function runSelfTests()
-    print(TAGD .. " " .. L("TEST_HEADER"))
-    local PaceEngine = NS.PaceEngine
-    if not PaceEngine then
-        print(TAGD .. " PaceEngine not loaded")
-        return
-    end
-
-    local tests = {}
-    local function record(name, ok, expected, got)
-        tests[#tests + 1] = { name = name, ok = ok, expected = tostring(expected), got = tostring(got) }
-    end
-
-    -- Test 1: ResolveAffixCombo sorts alphabetically
-    local got = PaceEngine.ResolveAffixCombo({ 10, 9, 147 })
-    local expected = "fortified-tyrannical-xalataths-guile"
-    record("affix_combo_sort", got == expected, expected, got)
-
-    -- Test 2: ComputePace returns zero delta with no kills
-    local pace = PaceEngine.ComputePace(0, {}, { boss_splits_ms = { 280000, 740000, 1200000, 1742000 }, clear_time_ms = 1742000 })
-    record("pace_no_kills", pace.delta_ms == 0, 0, pace.delta_ms)
-
-    -- Test 3: ComputePace anchors to last killed boss
-    local pace2 = PaceEngine.ComputePace(
-        750000,
-        { [0] = 280000, [1] = 740000 },
-        { boss_splits_ms = { 280000, 740000, 1200000, 1742000 }, clear_time_ms = 1742000 }
-    )
-    record("pace_at_anchor", pace2.delta_ms == 0, 0, pace2.delta_ms)
-
-    -- Test 4: ComputePace drifts past nextRefKill
-    local pace3 = PaceEngine.ComputePace(
-        1300000,
-        { [0] = 280000, [1] = 740000 },
-        { boss_splits_ms = { 280000, 740000, 1200000, 1742000 }, clear_time_ms = 1742000 }
-    )
-    record("pace_drift_past_ref", pace3.delta_ms == 100000, 100000, pace3.delta_ms)
-
-    -- Test 5: SortedRefSplits returns ascending
-    local sorted = PaceEngine.SortedRefSplits({ 1200000, 280000, 1742000, 740000 })
-    local correct = sorted[1].split == 280000 and sorted[2].split == 740000 and sorted[3].split == 1200000 and sorted[4].split == 1742000
-    record("sorted_ref_splits", correct, "asc", correct and "asc" or "wrong")
-
-    -- Test 6: FindNearestLevel — exact match wins
-    local lvls = { [18] = {}, [19] = {}, [20] = {} }
-    record("nearest_level_exact", PaceEngine.FindNearestLevel(lvls, 19, 7) == 19, 19, PaceEngine.FindNearestLevel(lvls, 19, 7))
-
-    -- Test 7: FindNearestLevel — picks closest within cap (15 → 18)
-    record("nearest_level_below", PaceEngine.FindNearestLevel(lvls, 15, 7) == 18, 18, PaceEngine.FindNearestLevel(lvls, 15, 7))
-
-    -- Test 8: FindNearestLevel — picks closest above (25 → 20)
-    record("nearest_level_above", PaceEngine.FindNearestLevel(lvls, 25, 7) == 20, 20, PaceEngine.FindNearestLevel(lvls, 25, 7))
-
-    -- Test 9: FindNearestLevel — beyond cap returns nil
-    local nearest9 = PaceEngine.FindNearestLevel(lvls, 30, 7)
-    record("nearest_level_capped", nearest9 == nil, "nil", tostring(nearest9))
-
-    -- Test 10: FindNearestLevel — tie prefers lower level
-    local lvls10 = { [12] = {}, [18] = {} }
-    record("nearest_level_tie_lower", PaceEngine.FindNearestLevel(lvls10, 15, 7) == 12, 12, PaceEngine.FindNearestLevel(lvls10, 15, 7))
-
-    local pass = 0
-    for _, t in ipairs(tests) do
-        if t.ok then
-            pass = pass + 1
-            print(TAGD .. " " .. string.format(L("TEST_PASS"), t.name))
-        else
-            print(TAGD .. " " .. string.format(L("TEST_FAIL"), t.name, t.expected, t.got))
-        end
-    end
-    print(TAGD .. " " .. string.format(L("TEST_SUMMARY"), pass, #tests))
 end
 
 -- ─── Bootstrap ──────────────────────────────────────────────────────────────
@@ -195,11 +119,6 @@ SlashCmdList.JIT = function(msg)
 
     if cmd == "reset" then
         StaticPopup_Show("JIT_CONFIRM_RESET_RUNS")
-        return
-    end
-
-    if cmd == "test" then
-        runSelfTests()
         return
     end
 

@@ -20,7 +20,7 @@ local AFFIX_DISPLAY_EN = {
 local fr = {
     ADDON_LOADED          = "%s chargé. /jit pour les options.",
     FRAME_TITLE           = "JustInTime",
-    SLASH_HELP            = "Commandes : /jit | /jit show | /jit hide | /jit lock | /jit unlock | /jit mode <public|fastest|recent|median> | /jit reset | /jit help | /jit test",
+    SLASH_HELP            = "Commandes : /jit | /jit show | /jit hide | /jit lock | /jit unlock | /jit mode <public|fastest|recent|median> | /jit reset | /jit help",
     SLASH_UNKNOWN         = "Commande inconnue : %s. /jit help",
 
     REF_NONE              = "réf. indispo",
@@ -90,17 +90,12 @@ local fr = {
     BTN_YES               = "Oui",
     BTN_NO                = "Non",
     RESET_DONE            = "Runs perso effacées (%d entrées)",
-
-    TEST_HEADER           = "JustInTime self-tests",
-    TEST_PASS             = "PASS: %s",
-    TEST_FAIL             = "FAIL: %s — attendu %s, obtenu %s",
-    TEST_SUMMARY          = "%d/%d tests passent",
 }
 
 local en = {
     ADDON_LOADED          = "%s loaded. Type /jit for options.",
     FRAME_TITLE           = "JustInTime",
-    SLASH_HELP            = "Commands: /jit | /jit show | /jit hide | /jit lock | /jit unlock | /jit mode <public|fastest|recent|median> | /jit reset | /jit help | /jit test",
+    SLASH_HELP            = "Commands: /jit | /jit show | /jit hide | /jit lock | /jit unlock | /jit mode <public|fastest|recent|median> | /jit reset | /jit help",
     SLASH_UNKNOWN         = "Unknown command: %s. /jit help",
 
     REF_NONE              = "ref unavailable",
@@ -170,11 +165,6 @@ local en = {
     BTN_YES               = "Yes",
     BTN_NO                = "No",
     RESET_DONE            = "Personal runs erased (%d entries)",
-
-    TEST_HEADER           = "JustInTime self-tests",
-    TEST_PASS             = "PASS: %s",
-    TEST_FAIL             = "FAIL: %s — expected %s, got %s",
-    TEST_SUMMARY          = "%d/%d tests pass",
 }
 
 local active = (locale == "enUS" or locale == "enGB") and en or fr
