@@ -1,6 +1,28 @@
 JustInTime — Changelog
 =======================
 
+v0.3.0 — Cross-level fallback + death-adjusted timer (2026-04-27)
+------------------------------------------------------------------
+
+Features:
+- Cross-level reference fallback: when reference data is missing for the
+  exact key level, the addon now picks the nearest available level within
+  ±7 (e.g. running a +15 NPX with only +18-20 reference data falls back to
+  +18). The overlay clearly labels the fallback as "Réf : 28:34 (clé +18)"
+  and the chat prints a one-time info line at the start of the run. Beyond
+  the ±7 cap the comparison would be too biased, so it falls through to
+  "ref unavailable" rather than misleading you.
+- Dynamic overlay height: the frame now resizes to fit the actual number
+  of bosses in the dungeon (3-boss dungeons get a tighter frame, 4-boss
+  unchanged, no wasted space at the bottom).
+
+Fixes:
+- Death penalty is now included in the elapsed timer. The addon's "Écoulé"
+  matches Blizzard's in-game timer, and your boss splits are comparable to
+  reference data which is sourced from death-adjusted leaderboard times.
+  Penalty is read from `C_ChallengeMode.GetDeathCount()` so it adapts to
+  affixes that scale the cost (e.g. Xal'atath's Guile = 15s/death on +12+).
+
 v0.2.0 — Initial public release (2026-04-25)
 ---------------------------------------------
 
