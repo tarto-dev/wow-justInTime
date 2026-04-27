@@ -59,6 +59,8 @@ local fr = {
     PANEL_OVERLAY_POPUP   = "Popup transitoire (6s post-boss kill)",
     PANEL_OVERLAY_LOCK    = "Verrouiller la position",
     PANEL_OVERLAY_RESET   = "Réinitialiser la position",
+    PANEL_OVERLAY_ANCHOR_SHOW = "Afficher le cadre (déplaçable)",
+    PANEL_OVERLAY_ANCHOR_HIDE = "Masquer le cadre",
 
     PANEL_CHAT_HEADER     = "Mode texte (chat)",
     PANEL_CHAT_BOSS_KILL  = "Print à chaque boss kill",
@@ -135,6 +137,8 @@ local en = {
     PANEL_OVERLAY_POPUP   = "Popup transient (6s after boss kill)",
     PANEL_OVERLAY_LOCK    = "Lock position",
     PANEL_OVERLAY_RESET   = "Reset position",
+    PANEL_OVERLAY_ANCHOR_SHOW = "Show overlay (drag to move)",
+    PANEL_OVERLAY_ANCHOR_HIDE = "Hide overlay",
 
     PANEL_CHAT_HEADER     = "Text mode (chat)",
     PANEL_CHAT_BOSS_KILL  = "Print on each boss kill",

@@ -180,6 +180,7 @@ local function buildFrame()
         self.elapsedAccum = (self.elapsedAccum or 0) + elapsed
         if self.elapsedAccum < UPDATE_INTERVAL then return end
         self.elapsedAccum = 0
+        if Overlay.anchorMode then return end
         if not C_ChallengeMode.IsChallengeModeActive() then
             Overlay.Hide()
             return
@@ -440,6 +441,67 @@ function Overlay.ResetPosition()
     if frame then
         frame:ClearAllPoints()
         frame:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -180, -200)
+    end
+end
+
+-- ─── Anchor / placement mode ───────────────────────────────────────────────
+-- Renders the overlay outside of any active challenge so the user can drag it
+-- to a chosen spot from the Settings panel. Transient (not persisted).
+
+Overlay.anchorMode = false
+
+function Overlay.IsAnchorMode()
+    return Overlay.anchorMode == true
+end
+
+function Overlay.ShowAnchor()
+    if not frame then Overlay.Init() end
+    if not frame then return end
+    Overlay.anchorMode = true
+
+    -- Force-enable drag, regardless of the saved "locked" preference.
+    frame:EnableMouse(true)
+    frame:RegisterForDrag("LeftButton")
+    frame:SetScript("OnDragStart", function(self) self:StartMoving() end)
+    frame:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        persistPosition()
+    end)
+
+    -- Populate placeholder values so the frame doesn't look empty.
+    local dummyPace = {
+        delta_ms = 0,
+        normalized = 0,
+        projected_finish_ms = 1700000,
+    }
+    local dummyBosses = {
+        { name = "Boss 1", ordinal = 0 },
+        { name = "Boss 2", ordinal = 1 },
+        { name = "Boss 3", ordinal = 2 },
+        { name = "Boss 4", ordinal = 3 },
+    }
+    local dummyRef = {
+        clear_time_ms  = 1700000,
+        boss_splits_ms = { 425000, 850000, 1275000, 1700000 },
+    }
+    local dummyKills = { [0] = 410000, [1] = 845000 }
+    Overlay.SetData(900000, dummyPace, 4, 2, 845000, dummyRef, 1800000, dummyBosses, dummyKills)
+
+    frame:SetAlpha(1)
+    frame:Show()
+end
+
+function Overlay.HideAnchor()
+    Overlay.anchorMode = false
+    Overlay.RefreshDraggable()
+    Overlay.RefreshVisibility()
+end
+
+function Overlay.ToggleAnchor()
+    if Overlay.anchorMode then
+        Overlay.HideAnchor()
+    else
+        Overlay.ShowAnchor()
     end
 end
 
