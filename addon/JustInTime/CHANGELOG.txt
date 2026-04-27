@@ -1,6 +1,31 @@
 JustInTime — Changelog
 =======================
 
+v0.3.3 — Hook Blizzard's tracker for the elapsed timer (2026-04-27)
+-------------------------------------------------------------------
+
+Improvements:
+- The elapsed value is now read from a hooksecurefunc on
+  ChallengeModeBlock:UpdateTime — the same callback Blizzard uses to
+  drive its in-game M+ tracker. The displayed clock matches the
+  official one by construction (no more realignment race), survives
+  /reload mid-key without drift, and the ready-countdown + death
+  penalty are included automatically. Pattern lifted from
+  EllesmereUIMythicTimer's drift-immune approach.
+- The fallback chain is GetWorldElapsedTime → GetTime() math, so the
+  timer keeps working in worst case if a future patch breaks the hook.
+- Final clear time now reads from C_ChallengeMode.GetChallengeCompletionInfo()
+  (the modern struct API) before falling back to GetCompletionInfo().
+  More resilient around depletion fanfare timing.
+- After a /reload mid-key, a delayed PEW retry (10s) re-attaches the
+  hook once Blizzard's own tracker has rebuilt.
+- ENCOUNTER_END is now only registered while a key is active. Outside
+  M+ the addon stays idle on raid / world-boss kills.
+
+Cleanup:
+- Removed WORLD_STATE_TIMER_START / STOP plumbing (the hook supersedes
+  that path).
+
 v0.3.2 — Hotfix: timer stuck at 0:00 in v0.3.1 (2026-04-27)
 -----------------------------------------------------------
 
