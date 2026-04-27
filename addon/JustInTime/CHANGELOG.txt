@@ -1,0 +1,38 @@
+JustInTime — Changelog
+=======================
+
+v0.2.0 — Initial public release (2026-04-25)
+---------------------------------------------
+
+First public release of JustInTime on CurseForge.
+
+Features:
+- Live pace tracking: continuous delta against a reference run for the same
+  dungeon, key level, and affix combo.
+- Per-boss table: boss name, your time (live counter on the next-up boss,
+  color-graded green / violet / red based on pace), and the reference split.
+- Pace bar with progress fill, projected-finish marker, and per-boss pips
+  that turn green on kill.
+- Reference modes: public (curated reference set), fastest, recent, and
+  median of your personal runs. Optional "Ignore affixes" to widen the
+  sample when affix-specific data is sparse.
+- Visibility modes: always visible during keys, or popup transient (6s
+  fade after each boss kill).
+- Show overlay button in settings to position the frame anywhere on your
+  UI without being in a key.
+- Movable overlay with lock / unlock and reset-to-default.
+- Chat triggers (toggleable): boss kill, key-end recap, threshold cross,
+  deplete-imminent warning.
+- Critical alerts: red pulse, chat warning, sound.
+- Slash commands: /jit, /jit show, /jit hide, /jit lock, /jit unlock,
+  /jit mode <public|fastest|recent|median>, /jit reset, /jit test,
+  /jit help.
+- Locales: French (default for frFR) and English (enUS / enGB).
+- Pure Lua, no LibStub, no Ace3. Single overlay frame, ~10 Hz updates,
+  active only when needed.
+
+Compatibility:
+- WoW Retail Midnight (Interface 120001).
+
+Author:
+- Made by Claralicious_.
