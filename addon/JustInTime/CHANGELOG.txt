@@ -1,6 +1,20 @@
 JustInTime — Changelog
 =======================
 
+v0.3.4 — Drop in-game self-tests (2026-04-27)
+---------------------------------------------
+
+Cleanup:
+- Removed the `/jit test` slash command and the `runSelfTests` PaceEngine
+  smoke battery from Core.lua. They duplicated coverage that lives more
+  comfortably in the Python pipeline (scripts/) and bloated the in-game
+  command surface. Removed associated TEST_* locale keys (fr+en) and
+  the TAGD debug tag local.
+- Added a repo-root Makefile to drive the reference-timer rebuild
+  (`make data`, `make data-dry`, `make data-fresh`, `make data-only
+  DUNGEON=<slug>`) and the addon zip packaging (`make addon-zip`).
+  Run `make help` for the full target list.
+
 v0.3.3 — Hook Blizzard's tracker for the elapsed timer (2026-04-27)
 -------------------------------------------------------------------
 
