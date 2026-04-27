@@ -315,6 +315,10 @@ function Overlay.SetData(elapsed_ms, pace, num_bosses, kills_count, last_split_m
         end
     end
 
+    -- Resize frame to fit only the boss rows actually used.
+    local n_rows = math.min(MAX_BOSS_ROWS, num_bosses or 4)
+    frame:SetHeight(150 + n_rows * 14)
+
     rowElapsed.value:SetText(formatTime(elapsed_ms))
     rowETA.value:SetText(pace and formatTime(pace.projected_finish_ms) or "—")
     rowLast.value:SetText(last_split_ms > 0 and formatTime(last_split_ms) or "—")
