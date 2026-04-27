@@ -1,6 +1,23 @@
 JustInTime — Changelog
 =======================
 
+v0.3.2 — Hotfix: timer stuck at 0:00 in v0.3.1 (2026-04-27)
+-----------------------------------------------------------
+
+Fixes:
+- v0.3.1 made the elapsed timer fully dependent on Blizzard's
+  GetWorldElapsedTime API. In Midnight (12.0.x) this either no longer
+  fires WORLD_STATE_TIMER_START for challenge mode or returns a different
+  value layout, leaving the addon clock stuck at 0:00 for the entire run.
+- The timer is now back to being driven by GetTime() (always available),
+  with the official world timer used only to *realign* the start time to
+  the post-countdown t0 when the event does come through. Best of both:
+  if the API works, you get the accurate clock from v0.3.1; if it
+  doesn't, you fall back to the v0.3.0 behaviour (functional, with a
+  small ~10s start-of-key bias) instead of a frozen 0:00.
+- Also handles the two known signatures of GetWorldElapsedTime
+  (2-return vs 3-return) so future patch shifts won't silently break it.
+
 v0.3.1 — Sync elapsed timer with Blizzard's official clock (2026-04-27)
 -----------------------------------------------------------------------
 
