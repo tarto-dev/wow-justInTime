@@ -318,7 +318,16 @@ function Overlay.SetData(elapsed_ms, pace, num_bosses, kills_count, last_split_m
     rowElapsed.value:SetText(formatTime(elapsed_ms))
     rowETA.value:SetText(pace and formatTime(pace.projected_finish_ms) or "—")
     rowLast.value:SetText(last_split_ms > 0 and formatTime(last_split_ms) or "—")
-    rowRef.value:SetText(ref and formatTime(ref.clear_time_ms) or L("OVERLAY_REF_NONE"))
+    if ref then
+        local refStr = formatTime(ref.clear_time_ms)
+        local s = NS.State and NS.State.GetActiveSession()
+        if s and ref.level_used and ref.level_used ~= s.level then
+            refStr = string.format(L("OVERLAY_REF_LEVEL_FALLBACK"), refStr, ref.level_used)
+        end
+        rowRef.value:SetText(refStr)
+    else
+        rowRef.value:SetText(L("OVERLAY_REF_NONE"))
+    end
 
     updateBossTable(elapsed_ms, num_bosses, ref, bosses, your_kills_by_ord)
 end

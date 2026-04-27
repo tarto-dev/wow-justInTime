@@ -8,6 +8,11 @@ local PaceEngine = {}
 local mapIdToSlug = {}
 local affixIdToSlug = {}
 
+-- Maximum distance (in key levels) tolerated when falling back to a different
+-- level's reference cell. Beyond this gap the comparison would be too biased
+-- to be useful, so we return nil instead.
+local LEVEL_FALLBACK_CAP = 7
+
 function PaceEngine.Init()
     if not _G.JustInTimeData then return end
     local data = _G.JustInTimeData
@@ -29,6 +34,42 @@ end
 
 function PaceEngine.MapIdToSlug(map_id)
     return mapIdToSlug[map_id]
+end
+
+-- Find the level closest to `target` (in absolute distance) within `levels`,
+-- bounded by `cap`. Ties prefer the lower level (more demanding ref).
+-- Returns nil if no level falls within the cap.
+function PaceEngine.FindNearestLevel(levels, target, cap)
+    if not levels then return nil end
+    if levels[target] then return target end
+    local best, bestDist
+    for lvl, _ in pairs(levels) do
+        local dist = math.abs(lvl - target)
+        if dist <= cap then
+            if not best or dist < bestDist or (dist == bestDist and lvl < best) then
+                best = lvl
+                bestDist = dist
+            end
+        end
+    end
+    return best
+end
+
+-- Try to resolve a (level, affix_combo) cell within a dungeon, applying the
+-- affix-combo fallback when ignore_affixes is set. Returns cell, comboUsed.
+local function lookupCell(dg, level, affix_combo, ignore_affixes)
+    local levelEntry = dg.levels and dg.levels[level]
+    if not levelEntry then return nil, nil end
+    local cell = levelEntry[affix_combo]
+    local comboUsed = affix_combo
+    if not cell and ignore_affixes then
+        for combo, c in pairs(levelEntry) do
+            cell = c
+            comboUsed = combo
+            break
+        end
+    end
+    return cell, comboUsed
 end
 
 -- Given a list of WoW affix IDs, returns the alphabetically-sorted combo slug.
@@ -124,15 +165,13 @@ function PaceEngine.GetReferenceForActive()
             return nil
         end
         local dg = data.dungeons[s.dungeon_slug]
-        local levelEntry = dg.levels and dg.levels[s.level]
-        if not levelEntry then return nil end
-        local cell = levelEntry[s.affix_combo]
-        local comboUsed = s.affix_combo
-        if not cell and cfg.ignore_affixes then
-            for combo, c in pairs(levelEntry) do
-                cell = c
-                comboUsed = combo
-                break
+        local cell, comboUsed = lookupCell(dg, s.level, s.affix_combo, cfg.ignore_affixes)
+        local levelUsed = s.level
+        if not cell then
+            local nearest = PaceEngine.FindNearestLevel(dg.levels, s.level, LEVEL_FALLBACK_CAP)
+            if nearest then
+                cell, comboUsed = lookupCell(dg, nearest, s.affix_combo, cfg.ignore_affixes)
+                if cell then levelUsed = nearest end
             end
         end
         if not cell then return nil end
@@ -142,6 +181,7 @@ function PaceEngine.GetReferenceForActive()
             num_bosses         = dg.num_bosses,
             source_label       = "public",
             affix_combo_used   = comboUsed,
+            level_used         = levelUsed,
             sample_size        = cell.sample_size,
         }
     else
@@ -153,23 +193,32 @@ function PaceEngine.GetReferenceForActive()
             cfg.ignore_affixes and nil or s.affix_combo
         )
         local agg = PaceEngine.AggregatePersonalRuns(pool, subtype)
-        if agg then return agg end
+        if agg then
+            agg.level_used = s.level
+            return agg
+        end
         -- Fallback to public if no perso data
         if data and data.dungeons and data.dungeons[s.dungeon_slug] then
             local dg = data.dungeons[s.dungeon_slug]
-            local levelEntry = dg.levels and dg.levels[s.level]
-            if levelEntry then
-                local cell = levelEntry[s.affix_combo]
-                if cell then
-                    return {
-                        boss_splits_ms     = cell.boss_splits_ms,
-                        clear_time_ms      = cell.clear_time_ms,
-                        num_bosses         = dg.num_bosses,
-                        source_label       = "public_fallback",
-                        affix_combo_used   = s.affix_combo,
-                        sample_size        = cell.sample_size,
-                    }
+            local cell, comboUsed = lookupCell(dg, s.level, s.affix_combo, cfg.ignore_affixes)
+            local levelUsed = s.level
+            if not cell then
+                local nearest = PaceEngine.FindNearestLevel(dg.levels, s.level, LEVEL_FALLBACK_CAP)
+                if nearest then
+                    cell, comboUsed = lookupCell(dg, nearest, s.affix_combo, cfg.ignore_affixes)
+                    if cell then levelUsed = nearest end
                 end
+            end
+            if cell then
+                return {
+                    boss_splits_ms     = cell.boss_splits_ms,
+                    clear_time_ms      = cell.clear_time_ms,
+                    num_bosses         = dg.num_bosses,
+                    source_label       = "public_fallback",
+                    affix_combo_used   = comboUsed,
+                    level_used         = levelUsed,
+                    sample_size        = cell.sample_size,
+                }
             end
         end
         return nil

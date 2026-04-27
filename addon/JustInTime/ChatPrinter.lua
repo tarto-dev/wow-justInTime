@@ -68,6 +68,24 @@ local function bossNameByOrdinal(dungeon_slug, ord)
     return string.format("Boss %d", (ord or 0) + 1)
 end
 
+-- Announce once per session if the resolved reference is from a different
+-- key level than the active session (level fallback hit).
+function ChatPrinter.AnnounceLevelFallbackIfNeeded()
+    local State = NS.State
+    local PaceEngine = NS.PaceEngine
+    if not State or not PaceEngine then return end
+    local s = State.GetActiveSession()
+    if not s then return end
+    if s.level_fallback_announced then return end
+
+    local ref = PaceEngine.GetReferenceForActive()
+    if not ref or not ref.level_used or ref.level_used == s.level then return end
+
+    print(string.format("%s %s", tag(),
+        string.format(L("LEVEL_FALLBACK_INFO"), s.level, ref.level_used)))
+    s.level_fallback_announced = true
+end
+
 function ChatPrinter.OnBossKill(ord, elapsed_ms)
     local State = NS.State
     local PaceEngine = NS.PaceEngine

@@ -46,6 +46,8 @@ local fr = {
     OVERLAY_LABEL_LAST    = "Last split",
     OVERLAY_LABEL_REF     = "Réf",
     OVERLAY_REF_NONE      = "réf indispo",
+    OVERLAY_REF_LEVEL_FALLBACK = "%s (clé +%d)",
+    LEVEL_FALLBACK_INFO   = "pas de réf pour clé +%d, fallback sur clé +%d",
 
     PANEL_REF_HEADER      = "Référence",
     PANEL_REF_PUBLIC      = "Publique (les pires runs timées)",
@@ -124,6 +126,8 @@ local en = {
     OVERLAY_LABEL_LAST    = "Last split",
     OVERLAY_LABEL_REF     = "Ref",
     OVERLAY_REF_NONE      = "ref unavailable",
+    OVERLAY_REF_LEVEL_FALLBACK = "%s (key +%d)",
+    LEVEL_FALLBACK_INFO   = "no ref for key +%d, falling back to key +%d",
 
     PANEL_REF_HEADER      = "Reference",
     PANEL_REF_PUBLIC      = "Public (slowest timed runs)",

@@ -36,6 +36,9 @@ local function onChallengeModeStart()
     sessionStartTime = GetTime()
     State.SetActiveSession(slug, level, combo, time())
 
+    if NS.ChatPrinter and NS.ChatPrinter.AnnounceLevelFallbackIfNeeded then
+        NS.ChatPrinter.AnnounceLevelFallbackIfNeeded()
+    end
     if NS.Overlay and NS.Overlay.RefreshVisibility then
         NS.Overlay.RefreshVisibility()
     end
@@ -116,6 +119,9 @@ local function onPlayerLogin()
             local now = time()
             local elapsedSec = now - s.started_epoch
             sessionStartTime = GetTime() - elapsedSec
+        end
+        if NS.ChatPrinter and NS.ChatPrinter.AnnounceLevelFallbackIfNeeded then
+            NS.ChatPrinter.AnnounceLevelFallbackIfNeeded()
         end
     end
 end

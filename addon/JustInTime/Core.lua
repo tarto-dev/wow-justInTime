@@ -85,6 +85,24 @@ local function runSelfTests()
     local correct = sorted[1].split == 280000 and sorted[2].split == 740000 and sorted[3].split == 1200000 and sorted[4].split == 1742000
     record("sorted_ref_splits", correct, "asc", correct and "asc" or "wrong")
 
+    -- Test 6: FindNearestLevel — exact match wins
+    local lvls = { [18] = {}, [19] = {}, [20] = {} }
+    record("nearest_level_exact", PaceEngine.FindNearestLevel(lvls, 19, 7) == 19, 19, PaceEngine.FindNearestLevel(lvls, 19, 7))
+
+    -- Test 7: FindNearestLevel — picks closest within cap (15 → 18)
+    record("nearest_level_below", PaceEngine.FindNearestLevel(lvls, 15, 7) == 18, 18, PaceEngine.FindNearestLevel(lvls, 15, 7))
+
+    -- Test 8: FindNearestLevel — picks closest above (25 → 20)
+    record("nearest_level_above", PaceEngine.FindNearestLevel(lvls, 25, 7) == 20, 20, PaceEngine.FindNearestLevel(lvls, 25, 7))
+
+    -- Test 9: FindNearestLevel — beyond cap returns nil
+    local nearest9 = PaceEngine.FindNearestLevel(lvls, 30, 7)
+    record("nearest_level_capped", nearest9 == nil, "nil", tostring(nearest9))
+
+    -- Test 10: FindNearestLevel — tie prefers lower level
+    local lvls10 = { [12] = {}, [18] = {} }
+    record("nearest_level_tie_lower", PaceEngine.FindNearestLevel(lvls10, 15, 7) == 12, 12, PaceEngine.FindNearestLevel(lvls10, 15, 7))
+
     local pass = 0
     for _, t in ipairs(tests) do
         if t.ok then
