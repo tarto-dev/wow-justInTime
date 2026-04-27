@@ -4,7 +4,7 @@
 ## Notes: Mythic+ pace tracker — know if you'll deplete before it's too late
 ## Notes-frFR: Tracker de tempo pour clés mythique+ — sache si tu vas déplate avant qu'il soit trop tard
 ## Author: Claralicious_
-## Version: 0.3.1
+## Version: 0.3.2
 ## X-Category: Mythic+
 ## SavedVariables: JustInTimeDB
 
