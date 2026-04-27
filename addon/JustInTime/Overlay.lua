@@ -10,6 +10,9 @@ local titleFS, deltaFS
 local barTrack, barFill, barMarker
 local pips = {}
 local rowElapsed, rowETA, rowLast, rowRef
+local bossRows = {}  -- { [i] = { name, my, ref } } — boss table
+
+local MAX_BOSS_ROWS = 6
 
 local UPDATE_INTERVAL = 0.1
 
@@ -54,7 +57,7 @@ end
 
 local function buildFrame()
     frame = CreateFrame("Frame", "JustInTimeOverlay", UIParent, "BackdropTemplate")
-    frame:SetSize(300, 140)
+    frame:SetSize(300, 234)
     frame:SetFrameStrata("MEDIUM")
     frame:SetClampedToScreen(true)
     frame:SetMovable(true)
@@ -141,6 +144,37 @@ local function buildFrame()
     rowLast.label:SetText(L("OVERLAY_LABEL_LAST"))
     rowRef.label:SetText(L("OVERLAY_LABEL_REF"))
 
+    -- Boss table (per-boss splits: name | your time | ref time)
+    -- Separator line above the table for visual cleanliness.
+    local sep = frame:CreateTexture(nil, "ARTWORK")
+    sep:SetTexture("Interface\\Buttons\\WHITE8x8")
+    sep:SetVertexColor(0.3, 0.3, 0.35, 0.7)
+    sep:SetSize(280, 1)
+    sep:SetPoint("TOPLEFT", 10, -124)
+
+    for i = 1, MAX_BOSS_ROWS do
+        local y = -130 - (i - 1) * 14
+        local nameFS = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        nameFS:SetPoint("TOPLEFT", 10, y)
+        nameFS:SetWidth(160)
+        nameFS:SetJustifyH("LEFT")
+        nameFS:SetWordWrap(false)
+
+        local myFS = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        myFS:SetPoint("TOPRIGHT", -60, y)
+        myFS:SetJustifyH("RIGHT")
+
+        local refFS = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        refFS:SetPoint("TOPRIGHT", -10, y)
+        refFS:SetJustifyH("RIGHT")
+
+        nameFS:Hide()
+        myFS:Hide()
+        refFS:Hide()
+
+        bossRows[i] = { name = nameFS, my = myFS, ref = refFS }
+    end
+
     frame.elapsedAccum = 0
     frame:SetScript("OnUpdate", function(self, elapsed)
         self.elapsedAccum = (self.elapsedAccum or 0) + elapsed
@@ -170,10 +204,12 @@ function Overlay.Tick()
     local data = _G.JustInTimeData
     local num_bosses = 4
     local timer_ms = 1800000
+    local bosses = nil
     if data and data.dungeons and data.dungeons[s.dungeon_slug] then
         local dg = data.dungeons[s.dungeon_slug]
         num_bosses = dg.num_bosses or 4
         timer_ms = dg.timer_ms or 1800000
+        bosses = dg.bosses
     end
 
     local kills_count = 0
@@ -183,10 +219,67 @@ function Overlay.Tick()
         if t > last_split_ms then last_split_ms = t end
     end
 
-    Overlay.SetData(elapsed_ms, pace, num_bosses, kills_count, last_split_ms, ref, timer_ms)
+    Overlay.SetData(elapsed_ms, pace, num_bosses, kills_count, last_split_ms, ref, timer_ms, bosses, s.boss_kills)
 end
 
-function Overlay.SetData(elapsed_ms, pace, num_bosses, kills_count, last_split_ms, ref, timer_ms)
+local function updateBossTable(elapsed_ms, num_bosses, ref, bosses, your_kills_by_ord)
+    local n = math.min(MAX_BOSS_ROWS, num_bosses or 0)
+    local refClear = (ref and ref.clear_time_ms and ref.clear_time_ms > 0) and ref.clear_time_ms or 0
+
+    -- Find next-up boss = smallest unkilled ordinal in [0, n-1].
+    local nextOrd = nil
+    if your_kills_by_ord then
+        for ord = 0, n - 1 do
+            if not your_kills_by_ord[ord] then
+                nextOrd = ord
+                break
+            end
+        end
+    else
+        nextOrd = 0
+    end
+
+    for i = 1, MAX_BOSS_ROWS do
+        local row = bossRows[i]
+        if not row then break end
+        local boss = bosses and bosses[i]
+        if i <= n and boss then
+            local ord = boss.ordinal or (i - 1)
+            local refSplit = ref and ref.boss_splits_ms and ref.boss_splits_ms[ord + 1]
+            local yourSplit = your_kills_by_ord and your_kills_by_ord[ord]
+
+            row.name:SetText(boss.name or ("Boss " .. tostring(ord + 1)))
+            row.ref:SetText((refSplit and refSplit > 0) and formatTime(refSplit) or "—")
+
+            if yourSplit then
+                row.my:SetText(formatTime(yourSplit))
+                local delta = (refSplit and refSplit > 0) and (yourSplit - refSplit) or 0
+                local norm = (refClear > 0) and (delta / refClear) or 0
+                local c = mapDeltaToColor(norm)
+                row.my:SetTextColor(c[1], c[2], c[3])
+            elseif ord == nextOrd then
+                row.my:SetText(formatTime(elapsed_ms))
+                local delta = (refSplit and refSplit > 0) and (elapsed_ms - refSplit) or 0
+                local norm = (refClear > 0) and (delta / refClear) or 0
+                local c = mapDeltaToColor(norm)
+                row.my:SetTextColor(c[1], c[2], c[3])
+            else
+                row.my:SetText("—")
+                row.my:SetTextColor(0.5, 0.5, 0.5)
+            end
+
+            row.name:Show()
+            row.my:Show()
+            row.ref:Show()
+        else
+            row.name:Hide()
+            row.my:Hide()
+            row.ref:Hide()
+        end
+    end
+end
+
+function Overlay.SetData(elapsed_ms, pace, num_bosses, kills_count, last_split_ms, ref, timer_ms, bosses, your_kills_by_ord)
     if not frame then return end
 
     if NS.ChatPrinter and pace then
@@ -206,7 +299,8 @@ function Overlay.SetData(elapsed_ms, pace, num_bosses, kills_count, last_split_m
     for i = 1, 6 do
         if i <= n then
             local pip = pips[i]
-            local x = (280 / n) * (i - 0.5) - 20
+            -- "TOP" anchors at the top-center of the pip; center on the segment midpoint.
+            local x = (280 / n) * (i - 0.5)
             pip:ClearAllPoints()
             pip:SetPoint("TOP", barTrack, "TOPLEFT", x, -10)
             if i <= (kills_count or 0) then
@@ -224,6 +318,8 @@ function Overlay.SetData(elapsed_ms, pace, num_bosses, kills_count, last_split_m
     rowETA.value:SetText(pace and formatTime(pace.projected_finish_ms) or "—")
     rowLast.value:SetText(last_split_ms > 0 and formatTime(last_split_ms) or "—")
     rowRef.value:SetText(ref and formatTime(ref.clear_time_ms) or L("OVERLAY_REF_NONE"))
+
+    updateBossTable(elapsed_ms, num_bosses, ref, bosses, your_kills_by_ord)
 end
 
 function Overlay.Init()
