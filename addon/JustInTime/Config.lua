@@ -104,6 +104,8 @@ local function makeCheckbox(parent, label, x, y, path_chain)
     local cb = CreateFrame("CheckButton", nil, parent, "InterfaceOptionsCheckButtonTemplate")
     cb:SetPoint("TOPLEFT", x, y)
     cb.Text:SetText(label)
+    -- Extend hit area over the label so clicking the text toggles the box.
+    cb:SetHitRectInsets(0, -260, 0, 0)
     cb:SetScript("OnShow", function(self) self:SetChecked(getConfig(path_chain) and true or false) end)
     cb:SetScript("OnClick", function(self) setConfig(path_chain, self:GetChecked() and true or false) end)
     return cb
@@ -112,9 +114,13 @@ end
 local function makeRadioGroup(parent, options, x, y, path_chain)
     local radios = {}
     for i, opt in ipairs(options) do
-        local r = CreateFrame("CheckButton", nil, parent, "InterfaceOptionsCheckButtonTemplate")
+        local r = CreateFrame("CheckButton", nil, parent, "UIRadioButtonTemplate")
         r:SetPoint("TOPLEFT", x, y - (i - 1) * 22)
-        r.Text:SetText(opt.label)
+        local txt = r:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        txt:SetPoint("LEFT", r, "RIGHT", 4, 1)
+        txt:SetText(opt.label)
+        -- Extend hit area over the label so clicking the text selects the radio.
+        r:SetHitRectInsets(0, -260, 0, 0)
         r.value = opt.value
         r:SetScript("OnShow", function(self) self:SetChecked(getConfig(path_chain) == self.value) end)
         r:SetScript("OnClick", function(self)
@@ -138,7 +144,14 @@ end
 local function makeHeader(parent, text, x, y)
     local fs = parent:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
     fs:SetPoint("TOPLEFT", x, y)
-    fs:SetText("── " .. text .. " ──")
+    fs:SetText(text)
+    -- Underline rule for visual separation (the box-drawing chars used before
+    -- weren't in GameFontNormalLarge and rendered as missing-glyph squares).
+    local rule = parent:CreateTexture(nil, "ARTWORK")
+    rule:SetTexture("Interface\\Buttons\\WHITE8x8")
+    rule:SetVertexColor(0.6, 0.45, 0.15, 0.6)
+    rule:SetSize(560, 1)
+    rule:SetPoint("TOPLEFT", fs, "BOTTOMLEFT", 0, -2)
     return fs
 end
 
@@ -158,66 +171,91 @@ local function buildPanel()
     panel = CreateFrame("Frame")
     panel.name = flameText("JustInTime")
 
-    -- Title (flame gradient, big)
-    local title = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalHuge")
+    -- Footer stays anchored to the (non-scrolling) panel.
+    buildFooter(panel)
+
+    -- Scrollable content host. The Settings canvas does not scroll on its own,
+    -- so wrap everything (except the footer) in a UIPanelScrollFrameTemplate.
+    local scroll = CreateFrame("ScrollFrame", "JustInTimeOptionsScroll", panel, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, 0)
+    scroll:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -28, 28)
+
+    local content = CreateFrame("Frame", "JustInTimeOptionsContent", scroll)
+    content:SetSize(620, 720)
+    scroll:SetScrollChild(content)
+    panel.scroll = scroll
+    panel.content = content
+
+    -- Title (flame gradient, big) — lives inside scroll content
+    local title = content:CreateFontString(nil, "ARTWORK", "GameFontNormalHuge")
     title:SetPoint("TOPLEFT", 16, -16)
     title:SetText(flameText("JustInTime"))
 
-    buildFooter(panel)
-
     local Y_TOP = -50
     -- ── Reference ──
-    makeHeader(panel, L("PANEL_REF_HEADER"), 16, Y_TOP)
-    widgets.refRadios = makeRadioGroup(panel, {
+    makeHeader(content, L("PANEL_REF_HEADER"), 16, Y_TOP)
+    widgets.refRadios = makeRadioGroup(content, {
         { value = "public",          label = L("PANEL_REF_PUBLIC") },
         { value = "perso_fastest",   label = L("PANEL_REF_FASTEST") },
         { value = "perso_recent",    label = L("PANEL_REF_RECENT") },
         { value = "perso_median",    label = L("PANEL_REF_MEDIAN") },
     }, 32, Y_TOP - 22, { "reference_mode" })
 
-    widgets.cbIgnoreAffixes = makeCheckbox(panel, L("PANEL_IGNORE_AFFIXES"), 32, Y_TOP - 22 * 5, { "ignore_affixes" })
+    widgets.cbIgnoreAffixes = makeCheckbox(content, L("PANEL_IGNORE_AFFIXES"), 32, Y_TOP - 22 * 5, { "ignore_affixes" })
 
     -- ── Overlay ──
     local Y_OVL = Y_TOP - 22 * 7
-    makeHeader(panel, L("PANEL_OVERLAY_HEADER"), 16, Y_OVL)
-    widgets.visRadios = makeRadioGroup(panel, {
+    makeHeader(content, L("PANEL_OVERLAY_HEADER"), 16, Y_OVL)
+    widgets.visRadios = makeRadioGroup(content, {
         { value = "always", label = L("PANEL_OVERLAY_ALWAYS") },
         { value = "popup",  label = L("PANEL_OVERLAY_POPUP") },
     }, 32, Y_OVL - 22, { "overlay_visibility" })
 
-    widgets.cbLock = makeCheckbox(panel, L("PANEL_OVERLAY_LOCK"), 32, Y_OVL - 22 * 3, { "overlay_position", "locked" })
+    widgets.cbLock = makeCheckbox(content, L("PANEL_OVERLAY_LOCK"), 32, Y_OVL - 22 * 3, { "overlay_position", "locked" })
     widgets.cbLock:HookScript("OnClick", function()
         if NS.Overlay and NS.Overlay.RefreshDraggable then NS.Overlay.RefreshDraggable() end
     end)
 
-    makeButton(panel, L("PANEL_OVERLAY_RESET"), 32, Y_OVL - 22 * 4, 200, function()
+    makeButton(content, L("PANEL_OVERLAY_RESET"), 32, Y_OVL - 22 * 4, 200, function()
         if NS.Overlay and NS.Overlay.ResetPosition then NS.Overlay.ResetPosition() end
     end)
 
+    widgets.btnAnchor = makeButton(content, L("PANEL_OVERLAY_ANCHOR_SHOW"), 32, Y_OVL - 22 * 5, 240, function() end)
+    widgets.btnAnchor:SetScript("OnClick", function(self)
+        if not (NS.Overlay and NS.Overlay.ToggleAnchor) then return end
+        NS.Overlay.ToggleAnchor()
+        local on = NS.Overlay.IsAnchorMode and NS.Overlay.IsAnchorMode()
+        self:SetText(L(on and "PANEL_OVERLAY_ANCHOR_HIDE" or "PANEL_OVERLAY_ANCHOR_SHOW"))
+    end)
+    widgets.btnAnchor:HookScript("OnShow", function(self)
+        local on = NS.Overlay and NS.Overlay.IsAnchorMode and NS.Overlay.IsAnchorMode()
+        self:SetText(L(on and "PANEL_OVERLAY_ANCHOR_HIDE" or "PANEL_OVERLAY_ANCHOR_SHOW"))
+    end)
+
     -- ── Chat triggers ──
-    local Y_CHAT = Y_OVL - 22 * 6
-    makeHeader(panel, L("PANEL_CHAT_HEADER"), 16, Y_CHAT)
-    widgets.cbBossKill = makeCheckbox(panel, L("PANEL_CHAT_BOSS_KILL"), 32, Y_CHAT - 22, { "triggers", "chat_boss_kill" })
-    widgets.cbKeyEnd   = makeCheckbox(panel, L("PANEL_CHAT_KEY_END"),   32, Y_CHAT - 22 * 2, { "triggers", "chat_key_end" })
-    widgets.cbThreshold = makeCheckbox(panel, L("PANEL_CHAT_THRESHOLD"), 32, Y_CHAT - 22 * 3, { "triggers", "chat_threshold_cross" })
+    local Y_CHAT = Y_OVL - 22 * 7
+    makeHeader(content, L("PANEL_CHAT_HEADER"), 16, Y_CHAT)
+    widgets.cbBossKill = makeCheckbox(content, L("PANEL_CHAT_BOSS_KILL"), 32, Y_CHAT - 22, { "triggers", "chat_boss_kill" })
+    widgets.cbKeyEnd   = makeCheckbox(content, L("PANEL_CHAT_KEY_END"),   32, Y_CHAT - 22 * 2, { "triggers", "chat_key_end" })
+    widgets.cbThreshold = makeCheckbox(content, L("PANEL_CHAT_THRESHOLD"), 32, Y_CHAT - 22 * 3, { "triggers", "chat_threshold_cross" })
 
     -- ── Critical alerts ──
     local Y_CRIT = Y_CHAT - 22 * 5
-    makeHeader(panel, L("PANEL_CRIT_HEADER"), 16, Y_CRIT)
-    widgets.cbCritVisual = makeCheckbox(panel, L("PANEL_CRIT_VISUAL"), 32, Y_CRIT - 22, { "critical_alerts", "visual" })
-    widgets.cbCritChat   = makeCheckbox(panel, L("PANEL_CRIT_CHAT"),   32, Y_CRIT - 22 * 2, { "critical_alerts", "chat" })
-    widgets.cbCritSound  = makeCheckbox(panel, L("PANEL_CRIT_SOUND"),  32, Y_CRIT - 22 * 3, { "critical_alerts", "sound" })
+    makeHeader(content, L("PANEL_CRIT_HEADER"), 16, Y_CRIT)
+    widgets.cbCritVisual = makeCheckbox(content, L("PANEL_CRIT_VISUAL"), 32, Y_CRIT - 22, { "critical_alerts", "visual" })
+    widgets.cbCritChat   = makeCheckbox(content, L("PANEL_CRIT_CHAT"),   32, Y_CRIT - 22 * 2, { "critical_alerts", "chat" })
+    widgets.cbCritSound  = makeCheckbox(content, L("PANEL_CRIT_SOUND"),  32, Y_CRIT - 22 * 3, { "critical_alerts", "sound" })
 
     -- ── Data ──
     local Y_DATA = Y_CRIT - 22 * 5
-    makeHeader(panel, L("PANEL_DATA_HEADER"), 16, Y_DATA)
-    local dataLabel = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    makeHeader(content, L("PANEL_DATA_HEADER"), 16, Y_DATA)
+    local dataLabel = content:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     dataLabel:SetPoint("TOPLEFT", 32, Y_DATA - 22)
     dataLabel:SetWidth(500)
     dataLabel:SetJustifyH("LEFT")
     panel.dataLabel = dataLabel
 
-    makeButton(panel, L("PANEL_DATA_RESET_RUNS"), 32, Y_DATA - 22 * 3, 240, function()
+    makeButton(content, L("PANEL_DATA_RESET_RUNS"), 32, Y_DATA - 22 * 3, 240, function()
         StaticPopup_Show("JIT_CONFIRM_RESET_RUNS")
     end)
 
