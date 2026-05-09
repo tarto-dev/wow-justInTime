@@ -2,17 +2,23 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from jit_update.models import (
     AffixModifier,
+    BlizzardLeaderboardResponse,
+    BlizzardRun,
     BossInfo,
     Encounter,
     Run,
     RunDetails,
     affix_combo_slug,
 )
+
+FIXTURE_DIR = Path(__file__).parent / "fixtures"
 
 
 def test_run_parses_minimal_payload(load_fixture: Callable[[str], dict[str, Any]]) -> None:
@@ -150,3 +156,26 @@ def test_run_details_ordinal_zero_is_valid() -> None:
     details = RunDetails.model_validate(raw)
     splits = details.boss_splits_ms()
     assert splits == [100000]
+
+
+def test_blizzard_leaderboard_response_parses_sample() -> None:
+    raw = json.loads((FIXTURE_DIR / "blizzard_leaderboard_sample.json").read_text())
+    parsed = BlizzardLeaderboardResponse.model_validate(raw)
+    assert parsed.map_challenge_mode_id == 402
+    assert parsed.period == 1062
+    assert len(parsed.leading_groups) == 3
+
+
+def test_blizzard_run_extracts_keystone_level_and_duration() -> None:
+    raw = json.loads((FIXTURE_DIR / "blizzard_leaderboard_sample.json").read_text())
+    parsed = BlizzardLeaderboardResponse.model_validate(raw)
+    runs = [
+        BlizzardRun.from_group(
+            g, dungeon_slug="algethar-academy", region="eu", realm_id=1080, period=1062
+        )
+        for g in parsed.leading_groups
+    ]
+    assert {r.keystone_level for r in runs} == {15, 16, 19}
+    assert {r.duration_ms for r in runs} == {1816344, 1893221, 2103556}
+    assert all(r.dungeon_slug == "algethar-academy" for r in runs)
+    assert all(r.region == "eu" for r in runs)

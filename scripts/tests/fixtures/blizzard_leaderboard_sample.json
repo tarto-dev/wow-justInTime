@@ -1,0 +1,41 @@
+{
+  "_links": {"self": {"href": "https://eu.api.blizzard.com/data/wow/connected-realm/1080/mythic-leaderboard/402/period/1062?namespace=dynamic-eu"}},
+  "map": {"name": "Algeth'ar Academy", "id": 402},
+  "period": 1062,
+  "period_start_timestamp": 1778040000000,
+  "period_end_timestamp": 1778644799000,
+  "connected_realm": {"href": "https://eu.api.blizzard.com/data/wow/connected-realm/1080?namespace=dynamic-eu"},
+  "leading_groups": [
+    {
+      "ranking": 1,
+      "duration": 1816344,
+      "completed_timestamp": 1778153301000,
+      "keystone_level": 19,
+      "members": [
+        {"profile": {"name": "Alpha", "id": 100, "realm": {"id": 1335, "slug": "ysondre"}}, "faction": {"type": "HORDE"}, "specialization": {"id": 102}}
+      ],
+      "mythic_rating": {"color": {"r": 1.0, "g": 0.65, "b": 0.0, "a": 1.0}, "rating": 154.7}
+    },
+    {
+      "ranking": 2,
+      "duration": 1893221,
+      "completed_timestamp": 1778153999000,
+      "keystone_level": 16,
+      "members": [
+        {"profile": {"name": "Beta", "id": 101, "realm": {"id": 1335, "slug": "ysondre"}}, "faction": {"type": "ALLIANCE"}, "specialization": {"id": 252}}
+      ]
+    },
+    {
+      "ranking": 3,
+      "duration": 2103556,
+      "completed_timestamp": 1778160000000,
+      "keystone_level": 15,
+      "members": [
+        {"profile": {"name": "Gamma", "id": 102, "realm": {"id": 1336, "slug": "outland"}}, "faction": {"type": "HORDE"}, "specialization": {"id": 264}}
+      ]
+    }
+  ],
+  "keystone_affixes": [{"id": 9, "name": "Tyrannical"}, {"id": 10, "name": "Fortified"}],
+  "map_challenge_mode_id": 402,
+  "name": "Algeth'ar Academy"
+}

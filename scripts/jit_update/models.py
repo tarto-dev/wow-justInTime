@@ -156,3 +156,80 @@ class ReferenceCell(BaseModel):
     sample_size: int
     clear_time_ms: int
     boss_splits_ms: list[int]
+
+
+class BlizzardMember(BaseModel):
+    """A single character in a Blizzard mythic-keystone-leaderboard group."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    profile: dict
+    faction: dict | None = None
+    specialization: dict | None = None
+
+
+class BlizzardLeadingGroup(BaseModel):
+    """One ranked group from /mythic-leaderboard/.../leading_groups."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    ranking: int
+    duration: int
+    completed_timestamp: int
+    keystone_level: int
+    members: list[BlizzardMember] = Field(default_factory=list)
+    mythic_rating: dict | None = None
+
+
+class BlizzardLeaderboardResponse(BaseModel):
+    """Full payload of a Blizzard mythic-keystone-leaderboard response."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    period: int
+    period_start_timestamp: int
+    period_end_timestamp: int
+    leading_groups: list[BlizzardLeadingGroup] = Field(default_factory=list)
+    map_challenge_mode_id: int
+    name: str
+
+
+class BlizzardRun(BaseModel):
+    """A normalized Mythic+ run discovered via Blizzard API.
+
+    Decoupled from BlizzardLeadingGroup so the pipeline can carry the dungeon /
+    region / realm / period context that the raw payload omits.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    dungeon_slug: str
+    region: str
+    realm_id: int
+    period: int
+    keystone_level: int
+    duration_ms: int
+    completed_timestamp: int
+
+    @classmethod
+    def from_group(
+        cls,
+        group: "BlizzardLeadingGroup | dict",
+        *,
+        dungeon_slug: str,
+        region: str,
+        realm_id: int,
+        period: int,
+    ) -> "BlizzardRun":
+        """Build a BlizzardRun from a leading_groups entry plus context."""
+        if isinstance(group, dict):
+            group = BlizzardLeadingGroup.model_validate(group)
+        return cls(
+            dungeon_slug=dungeon_slug,
+            region=region,
+            realm_id=realm_id,
+            period=period,
+            keystone_level=group.keystone_level,
+            duration_ms=group.duration,
+            completed_timestamp=group.completed_timestamp,
+        )
