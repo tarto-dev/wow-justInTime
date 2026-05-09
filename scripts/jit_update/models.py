@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -146,9 +147,13 @@ class RunDetails(BaseModel):
 
 
 class ReferenceCell(BaseModel):
-    """One cell of the reference table: (dungeon, level, affix_combo) -> splits.
+    """One cell of the reference table: (dungeon, level) -> splits.
 
-    This is what gets serialized into Data.lua per (dungeon x level x affix_combo).
+    Schema v2 removes the per-affix-combo nesting that v1 had — the addon
+    ignores the affix dimension in practice, so this cell sits directly
+    under levels[L] in the rendered Data.lua. ``splits_source`` records
+    how the boss splits were derived: real Raider.IO logged-encounter
+    data, synthesized via observed ratios, or equidistant fallback.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -156,6 +161,7 @@ class ReferenceCell(BaseModel):
     sample_size: int
     clear_time_ms: int
     boss_splits_ms: list[int]
+    splits_source: Literal["raiderio", "synthesized", "equidistant_fallback"]
 
 
 class BlizzardMember(BaseModel):

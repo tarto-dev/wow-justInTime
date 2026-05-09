@@ -7,12 +7,16 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import pytest
+from pydantic import ValidationError
+
 from jit_update.models import (
     AffixModifier,
     BlizzardLeaderboardResponse,
     BlizzardRun,
     BossInfo,
     Encounter,
+    ReferenceCell,
     Run,
     RunDetails,
     affix_combo_slug,
@@ -179,3 +183,43 @@ def test_blizzard_run_extracts_keystone_level_and_duration() -> None:
     assert {r.duration_ms for r in runs} == {1816344, 1893221, 2103556}
     assert all(r.dungeon_slug == "algethar-academy" for r in runs)
     assert all(r.region == "eu" for r in runs)
+
+
+def test_reference_cell_has_splits_source_field() -> None:
+    cell = ReferenceCell(
+        sample_size=10,
+        clear_time_ms=1700000,
+        boss_splits_ms=[425000, 850000, 1275000, 1700000],
+        splits_source="raiderio",
+    )
+    assert cell.splits_source == "raiderio"
+
+
+def test_reference_cell_accepts_synthesized_source() -> None:
+    cell = ReferenceCell(
+        sample_size=5,
+        clear_time_ms=1850000,
+        boss_splits_ms=[462500, 925000, 1387500, 1850000],
+        splits_source="synthesized",
+    )
+    assert cell.splits_source == "synthesized"
+
+
+def test_reference_cell_accepts_equidistant_fallback_source() -> None:
+    cell = ReferenceCell(
+        sample_size=2,
+        clear_time_ms=1900000,
+        boss_splits_ms=[475000, 950000, 1425000, 1900000],
+        splits_source="equidistant_fallback",
+    )
+    assert cell.splits_source == "equidistant_fallback"
+
+
+def test_reference_cell_rejects_unknown_source() -> None:
+    with pytest.raises(ValidationError):
+        ReferenceCell(
+            sample_size=5,
+            clear_time_ms=1850000,
+            boss_splits_ms=[1, 2, 3, 4],
+            splits_source="bogus",
+        )
