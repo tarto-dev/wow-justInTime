@@ -39,7 +39,6 @@ class ScopeConfig:
     levels: list[int]
     min_sample: int
     slowest_percentile: int
-    max_pages_per_query: int
 
 
 @dataclass(frozen=True)

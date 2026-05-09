@@ -33,7 +33,6 @@ max_retries = 3
 levels = [10, 12, 14]
 min_sample = 20
 slowest_percentile = 10
-max_pages_per_query = 50
 
 [output]
 data_lua_path = "../addon/JustInTime/Data.lua"
@@ -74,7 +73,6 @@ max_retries = 3
 levels = [1]
 min_sample = 20
 slowest_percentile = 10
-max_pages_per_query = 50
 
 [output]
 data_lua_path = "../addon/JustInTime/Data.lua"
@@ -108,7 +106,6 @@ max_retries = 3
 levels = [15, 16, 17, 18, 19, 20, 21, 22]
 min_sample = 20
 slowest_percentile = 10
-max_pages_per_query = 50
 
 [output]
 data_lua_path = "../addon/JustInTime/Data.lua"
@@ -139,7 +136,6 @@ max_retries = 3
 levels = [15, 16, 17, 18, 19, 20, 21, 22]
 min_sample = 20
 slowest_percentile = 10
-max_pages_per_query = 50
 
 [output]
 data_lua_path = "x"
@@ -147,3 +143,37 @@ schema_version = 2
 """)
     with pytest.raises(ValueError, match="missing \\[blizzard\\] section"):
         load_config(cfg_file)
+
+
+def test_scope_config_no_longer_has_max_pages_per_query(tmp_path: Path) -> None:
+    cfg_file = tmp_path / "config.toml"
+    cfg_file.write_text("""
+[raiderio]
+api_base = "https://raider.io/api/v1"
+expansion_id = 11
+season = "season-mn-1"
+region = "world"
+rate_per_minute = 300
+cache_ttl_seconds = 3600
+timeout_seconds = 30.0
+max_retries = 3
+
+[blizzard]
+regions = ["eu"]
+rate_per_second = 80
+cache_ttl_seconds = 3600
+timeout_seconds = 30.0
+max_retries = 3
+
+[scope]
+levels = [15, 16, 17, 18, 19, 20, 21, 22]
+min_sample = 20
+slowest_percentile = 10
+
+[output]
+data_lua_path = "x"
+schema_version = 2
+""")
+    cfg = load_config(cfg_file)
+    assert cfg.scope.levels == [15, 16, 17, 18, 19, 20, 21, 22]
+    assert not hasattr(cfg.scope, "max_pages_per_query")
