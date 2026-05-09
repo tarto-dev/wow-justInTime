@@ -117,7 +117,7 @@ function ChatPrinter.OnKeyEnd(run)
         local dg = data.dungeons[run.dungeon_slug]
         local levelEntry = dg.levels and dg.levels[run.level]
         if levelEntry then
-            local cell = levelEntry[run.affix_combo]
+            local cell = levelEntry  -- schema v2: levelEntry IS the cell
             if cell then
                 refClear = cell.clear_time_ms
                 refLabelStr = L("REF_PUBLIC_LABEL")

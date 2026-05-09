@@ -55,21 +55,13 @@ function PaceEngine.FindNearestLevel(levels, target, cap)
     return best
 end
 
--- Try to resolve a (level, affix_combo) cell within a dungeon, applying the
--- affix-combo fallback when ignore_affixes is set. Returns cell, comboUsed.
+-- Resolve a level cell within a dungeon. Schema v2 has no affix dimension,
+-- so the cell sits directly under levels[L]. The affix_combo / ignore_affixes
+-- arguments are accepted for backward compatibility but no longer used.
 local function lookupCell(dg, level, affix_combo, ignore_affixes)
     local levelEntry = dg.levels and dg.levels[level]
     if not levelEntry then return nil, nil end
-    local cell = levelEntry[affix_combo]
-    local comboUsed = affix_combo
-    if not cell and ignore_affixes then
-        for combo, c in pairs(levelEntry) do
-            cell = c
-            comboUsed = combo
-            break
-        end
-    end
-    return cell, comboUsed
+    return levelEntry, affix_combo
 end
 
 -- Given a list of WoW affix IDs, returns the alphabetically-sorted combo slug.
