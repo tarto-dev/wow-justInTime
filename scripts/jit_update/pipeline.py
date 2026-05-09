@@ -527,24 +527,27 @@ def merge_discovered(
     return merged
 
 
-def _bosses_block_from_static(dungeon: dict[str, Any]) -> dict[int, dict[str, Any]]:
-    """Build the bosses sub-table from static data, 1-indexed by ordinal+1.
+def _bosses_block_from_static(dungeon: dict[str, Any]) -> list[dict[str, Any]]:
+    """Build the bosses array (Lua 1-indexed) from static data.
+
+    Each entry: ``{ordinal: 0..n-1, slug, name}``. Ordinal is 0-indexed so
+    the addon's existing access pattern (``boss_splits_ms[ord+1]``) keeps
+    working.
 
     Falls back to placeholder entries if static data lacks a bosses array but
     declares ``num_bosses`` (so renderer output is at least non-empty).
     """
     bosses_in = dungeon.get("bosses") or []
-    out: dict[int, dict[str, Any]] = {}
+    out: list[dict[str, Any]] = []
     for b in bosses_in:
-        ordinal = int(b.get("ordinal", 0))
-        out[ordinal + 1] = {
-            "ordinal": ordinal + 1,
+        out.append({
+            "ordinal": int(b.get("ordinal", 0)),
             "slug": b.get("slug", ""),
             "name": b.get("name", ""),
-        }
+        })
     if not out and dungeon.get("num_bosses"):
         for i in range(int(dungeon["num_bosses"])):
-            out[i + 1] = {"ordinal": i + 1, "slug": f"boss-{i+1}", "name": f"Boss {i+1}"}
+            out.append({"ordinal": i, "slug": f"boss-{i+1}", "name": f"Boss {i+1}"})
     return out
 
 
@@ -637,7 +640,10 @@ def build_document_from_discovered(
             }
 
         document["dungeons"][slug] = {
-            "keystone_timer_ms": timer_ms,
+            "challenge_mode_id": int(dungeon.get("map_challenge_mode_id", 0)),
+            "num_bosses": num_bosses,
+            "short_name": dungeon.get("short_name", ""),
+            "timer_ms": timer_ms,
             "bosses": _bosses_block_from_static(dungeon),
             "levels": levels_block,
         }

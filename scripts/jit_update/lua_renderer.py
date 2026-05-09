@@ -40,14 +40,18 @@ def render_data_lua(doc: dict[str, Any]) -> str:
     for slug in sorted(doc.get("dungeons", {}).keys()):
         dungeon = doc["dungeons"][slug]
         lines.append(f'    ["{slug}"] = {{')
-        lines.append(f"      keystone_timer_ms = {int(dungeon.get('keystone_timer_ms', 0))},")
-        # Bosses sub-table
+        lines.append(f"      challenge_mode_id = {int(dungeon.get('challenge_mode_id', 0))},")
+        lines.append(f"      num_bosses        = {int(dungeon.get('num_bosses', 0))},")
+        lines.append(f'      short_name        = "{_escape_lua_string(dungeon.get("short_name", ""))}",')
+        lines.append(f"      timer_ms          = {int(dungeon.get('timer_ms', 0))},")
+        # Bosses sub-table — 1-indexed array with 0-indexed ordinal values
         lines.append("      bosses = {")
-        for ord_key in sorted(dungeon.get("bosses", {}).keys()):
-            b = dungeon["bosses"][ord_key]
+        for boss in dungeon.get("bosses", []):
+            ord_val = int(boss.get("ordinal", 0))
             lines.append(
-                f'        [{int(ord_key)}] = {{ ordinal = {int(b.get("ordinal", ord_key))}, '
-                f'slug = "{b.get("slug", "")}", name = "{_escape_lua_string(b.get("name", ""))}" }},'
+                f'        {{ ordinal = {ord_val}, '
+                f'slug = "{boss.get("slug", "")}", '
+                f'name = "{_escape_lua_string(boss.get("name", ""))}" }},'
             )
         lines.append("      },")
         # Levels sub-table — direct, no affix nesting

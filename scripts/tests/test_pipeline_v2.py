@@ -417,13 +417,18 @@ def test_build_document_from_discovered_assembles_meta_and_dungeons_with_v2_sche
     assert doc["meta"]["source"] == "blizzard+raiderio"
     assert "algethar-academy" in doc["dungeons"]
     aa = doc["dungeons"]["algethar-academy"]
-    assert aa["keystone_timer_ms"] == 1861000
+    assert aa["timer_ms"] == 1861000
+    assert aa["challenge_mode_id"] == 402
+    assert aa["num_bosses"] == 4
+    assert aa["short_name"] == "AA"
     assert 15 in aa["levels"]
     assert 22 in aa["levels"]
     # No affix sub-key — direct cell dict
     assert "boss_splits_ms" in aa["levels"][15]
     assert aa["levels"][15]["splits_source"] == "synthesized"
     assert aa["levels"][22]["splits_source"] == "raiderio"
+    # Bosses is a list with 0-indexed ordinals
+    assert isinstance(aa["bosses"], list)
 
 
 def test_merge_discovered_concatenates_run_lists() -> None:

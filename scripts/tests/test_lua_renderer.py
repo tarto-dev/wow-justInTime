@@ -45,8 +45,11 @@ def test_render_levels_have_no_affix_subkey() -> None:
         },
         "dungeons": {
             "algethar-academy": {
-                "keystone_timer_ms": 1861000,
-                "bosses": {1: {"ordinal": 1, "slug": "boss-1", "name": "Boss 1"}},
+                "challenge_mode_id": 402,
+                "num_bosses": 1,
+                "short_name": "AA",
+                "timer_ms": 1861000,
+                "bosses": [{"ordinal": 0, "slug": "boss-1", "name": "Boss 1"}],
                 "levels": {
                     15: {
                         "clear_time_ms": 2000000,
@@ -77,8 +80,11 @@ def test_render_includes_all_three_splits_sources() -> None:
         },
         "dungeons": {
             "d": {
-                "keystone_timer_ms": 1861000,
-                "bosses": {1: {"ordinal": 1, "slug": "b1", "name": "B1"}},
+                "challenge_mode_id": 402,
+                "num_bosses": 1,
+                "short_name": "D",
+                "timer_ms": 1861000,
+                "bosses": [{"ordinal": 0, "slug": "b1", "name": "B1"}],
                 "levels": {
                     15: {
                         "clear_time_ms": 2000000,
@@ -118,11 +124,14 @@ def test_render_emits_bosses_block() -> None:
         },
         "dungeons": {
             "d": {
-                "keystone_timer_ms": 1861000,
-                "bosses": {
-                    1: {"ordinal": 1, "slug": "first-boss", "name": "First Boss"},
-                    2: {"ordinal": 2, "slug": "second-boss", "name": "Second Boss"},
-                },
+                "challenge_mode_id": 402,
+                "num_bosses": 2,
+                "short_name": "D",
+                "timer_ms": 1861000,
+                "bosses": [
+                    {"ordinal": 0, "slug": "first-boss", "name": "First Boss"},
+                    {"ordinal": 1, "slug": "second-boss", "name": "Second Boss"},
+                ],
                 "levels": {},
             }
         },
@@ -131,6 +140,41 @@ def test_render_emits_bosses_block() -> None:
     assert '"first-boss"' in out
     assert '"second-boss"' in out
     assert "First Boss" in out
+    # Bosses are emitted as a plain array (no [i] = keys)
+    assert "[1] =" not in out or "ordinal = 0" in out  # ordinal is 0-indexed
+
+
+def test_render_emits_addon_required_fields() -> None:
+    """challenge_mode_id, num_bosses, short_name, timer_ms must all appear."""
+    doc = {
+        "meta": {
+            "generated_at": "2026-05-09T18:30:00Z",
+            "schema_version": 2,
+            "season": "season-mn-1",
+            "source": "blizzard+raiderio",
+        },
+        "dungeons": {
+            "algethar-academy": {
+                "challenge_mode_id": 402,
+                "num_bosses": 4,
+                "short_name": "AA",
+                "timer_ms": 1861000,
+                "bosses": [
+                    {"ordinal": 0, "slug": "overgrown-ancient", "name": "Overgrown Ancient"},
+                ],
+                "levels": {},
+            }
+        },
+    }
+    out = render_data_lua(doc)
+    assert "challenge_mode_id = 402" in out
+    assert "num_bosses        = 4" in out
+    assert 'short_name        = "AA"' in out
+    assert "timer_ms          = 1861000" in out
+    # ordinal is 0-indexed
+    assert "ordinal = 0" in out
+    # keystone_timer_ms must NOT appear (wrong name)
+    assert "keystone_timer_ms" not in out
 
 
 def test_render_output_is_deterministic() -> None:
@@ -144,16 +188,22 @@ def test_render_output_is_deterministic() -> None:
         },
         "dungeons": {
             "z-dungeon": {
-                "keystone_timer_ms": 1800000,
-                "bosses": {1: {"ordinal": 1, "slug": "b1", "name": "B1"}},
+                "challenge_mode_id": 401,
+                "num_bosses": 1,
+                "short_name": "ZD",
+                "timer_ms": 1800000,
+                "bosses": [{"ordinal": 0, "slug": "b1", "name": "B1"}],
                 "levels": {
                     20: {"clear_time_ms": 1700000, "boss_splits_ms": [1, 2, 3, 4], "sample_size": 5, "splits_source": "raiderio"},
                     15: {"clear_time_ms": 2000000, "boss_splits_ms": [5, 6, 7, 8], "sample_size": 30, "splits_source": "synthesized"},
                 },
             },
             "a-dungeon": {
-                "keystone_timer_ms": 1900000,
-                "bosses": {1: {"ordinal": 1, "slug": "b1", "name": "B1"}},
+                "challenge_mode_id": 400,
+                "num_bosses": 1,
+                "short_name": "AD",
+                "timer_ms": 1900000,
+                "bosses": [{"ordinal": 0, "slug": "b1", "name": "B1"}],
                 "levels": {
                     18: {"clear_time_ms": 1850000, "boss_splits_ms": [9, 10, 11, 12], "sample_size": 50, "splits_source": "raiderio"},
                 },
