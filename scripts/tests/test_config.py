@@ -22,6 +22,13 @@ cache_ttl_seconds = 3600
 timeout_seconds = 30.0
 max_retries = 3
 
+[blizzard]
+regions = ["eu", "us"]
+rate_per_second = 80
+cache_ttl_seconds = 3600
+timeout_seconds = 30.0
+max_retries = 3
+
 [scope]
 levels = [10, 12, 14]
 min_sample = 20
@@ -56,6 +63,13 @@ cache_ttl_seconds = 3600
 timeout_seconds = 30.0
 max_retries = 3
 
+[blizzard]
+regions = ["eu", "us"]
+rate_per_second = 80
+cache_ttl_seconds = 3600
+timeout_seconds = 30.0
+max_retries = 3
+
 [scope]
 levels = [1]
 min_sample = 20
@@ -68,3 +82,41 @@ schema_version = 1
 """)
     with pytest.raises(ValueError, match="level"):
         load_config(cfg_path)
+
+
+def test_load_config_parses_blizzard_section(tmp_path):
+    cfg_file = tmp_path / "config.toml"
+    cfg_file.write_text("""
+[raiderio]
+api_base = "https://raider.io/api/v1"
+expansion_id = 11
+season = "season-mn-1"
+region = "world"
+rate_per_minute = 300
+cache_ttl_seconds = 3600
+timeout_seconds = 30.0
+max_retries = 3
+
+[blizzard]
+regions = ["eu", "us"]
+rate_per_second = 80
+cache_ttl_seconds = 3600
+timeout_seconds = 30.0
+max_retries = 3
+
+[scope]
+levels = [15, 16, 17, 18, 19, 20, 21, 22]
+min_sample = 20
+slowest_percentile = 10
+max_pages_per_query = 50
+
+[output]
+data_lua_path = "../addon/JustInTime/Data.lua"
+schema_version = 2
+""")
+    cfg = load_config(cfg_file)
+    assert cfg.blizzard.regions == ["eu", "us"]
+    assert cfg.blizzard.rate_per_second == 80
+    assert cfg.blizzard.cache_ttl_seconds == 3600.0
+    assert cfg.blizzard.timeout_seconds == 30.0
+    assert cfg.blizzard.max_retries == 3

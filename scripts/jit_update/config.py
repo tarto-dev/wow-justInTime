@@ -22,6 +22,17 @@ class RaiderIOConfig:
 
 
 @dataclass(frozen=True)
+class BlizzardConfig:
+    """Battle.net Game Data API connection and behaviour settings."""
+
+    regions: list[str]
+    rate_per_second: float
+    cache_ttl_seconds: float
+    timeout_seconds: float
+    max_retries: int
+
+
+@dataclass(frozen=True)
 class ScopeConfig:
     """Keystone-level and sampling settings."""
 
@@ -44,6 +55,7 @@ class Config:
     """Top-level configuration object."""
 
     raiderio: RaiderIOConfig
+    blizzard: BlizzardConfig
     scope: ScopeConfig
     output: OutputConfig
 
@@ -66,6 +78,18 @@ def load_config(path: Path) -> Config:
     raw = tomllib.loads(path.read_text())
 
     raiderio = RaiderIOConfig(**raw["raiderio"])
+
+    blizzard_section = raw.get("blizzard")
+    if blizzard_section is None:
+        raise ValueError(f"missing [blizzard] section in {path}")
+    blizzard = BlizzardConfig(
+        regions=list(blizzard_section["regions"]),
+        rate_per_second=float(blizzard_section["rate_per_second"]),
+        cache_ttl_seconds=float(blizzard_section["cache_ttl_seconds"]),
+        timeout_seconds=float(blizzard_section["timeout_seconds"]),
+        max_retries=int(blizzard_section["max_retries"]),
+    )
+
     scope = ScopeConfig(**raw["scope"])
     output = OutputConfig(**raw["output"])
 
@@ -78,4 +102,4 @@ def load_config(path: Path) -> Config:
     if not 1 <= scope.slowest_percentile <= 100:
         raise ValueError("scope.slowest_percentile must be in [1..100]")
 
-    return Config(raiderio=raiderio, scope=scope, output=output)
+    return Config(raiderio=raiderio, blizzard=blizzard, scope=scope, output=output)
