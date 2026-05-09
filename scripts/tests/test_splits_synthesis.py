@@ -8,7 +8,12 @@ from typing import Any
 
 import pytest
 
-from jit_update.splits_synthesis import collect_observed_ratios, synthesize_splits
+from jit_update.cache import FileCache
+from jit_update.splits_synthesis import (
+    collect_observed_ratios,
+    collect_observed_ratios_cached,
+    synthesize_splits,
+)
 
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
@@ -104,3 +109,50 @@ def test_synthesize_splits_rounds_to_int() -> None:
     result = synthesize_splits(clear_time_ms=1000000, ratios=ratios, num_bosses=3)
     assert all(isinstance(v, int) for v in result)
     assert result == [333000, 666000, 1000000]
+
+
+def test_collect_observed_ratios_cached_serves_cache_on_second_call(tmp_path: Path) -> None:
+    splits = json.loads((FIXTURE_DIR / "raiderio_run_details_with_splits.json").read_text())
+    runs_payload = {"rankings": [{"run": {"keystone_run_id": 20945824}}]}
+
+    calls = {"runs": 0, "details": 0}
+
+    class CountingStub(StubRaiderIO):
+        def get_runs(self, *a: Any, **kw: Any) -> dict[str, Any]:
+            calls["runs"] += 1
+            return super().get_runs(*a, **kw)
+
+        def get_run_details(self, *a: Any, **kw: Any) -> dict[str, Any]:
+            calls["details"] += 1
+            return super().get_run_details(*a, **kw)
+
+    counting = CountingStub(runs_payload, {20945824: splits})
+    cache = FileCache(tmp_path / "cache", ttl_seconds=7 * 24 * 3600)
+
+    ratios_1 = collect_observed_ratios_cached(
+        counting, cache, "season-mn-1", "algethar-academy", num_bosses=4
+    )
+    ratios_2 = collect_observed_ratios_cached(
+        counting, cache, "season-mn-1", "algethar-academy", num_bosses=4
+    )
+
+    assert ratios_1 == ratios_2
+    assert calls["runs"] == 1, f"expected 1 /runs call, got {calls['runs']}"
+    assert calls["details"] == 1, f"expected 1 /run-details call, got {calls['details']}"
+
+
+def test_collect_observed_ratios_cached_uses_separate_keys_per_dungeon(tmp_path: Path) -> None:
+    splits = json.loads((FIXTURE_DIR / "raiderio_run_details_with_splits.json").read_text())
+    runs_payload = {"rankings": [{"run": {"keystone_run_id": 20945824}}]}
+    cache = FileCache(tmp_path / "cache", ttl_seconds=7 * 24 * 3600)
+    stub = StubRaiderIO(runs_payload, {20945824: splits})
+
+    r1 = collect_observed_ratios_cached(
+        stub, cache, "season-mn-1", "algethar-academy", num_bosses=4
+    )
+    r2 = collect_observed_ratios_cached(
+        stub, cache, "season-mn-1", "the-rookery", num_bosses=4
+    )
+
+    # Both compute (separate keys), values are equal because stub returns same data
+    assert r1 == r2

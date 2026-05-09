@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import statistics
 from typing import Any, Protocol
 
+from jit_update.cache import FileCache
 from jit_update.models import RunDetails
 
 
@@ -63,6 +65,38 @@ def collect_observed_ratios(
     return [
         statistics.median(samples) if samples else None for samples in samples_per_ordinal
     ]
+
+
+RATIOS_CACHE_TTL_SECONDS = 7 * 24 * 3600  # documented in spec section 7
+
+
+def collect_observed_ratios_cached(
+    client: RaiderIOLike,
+    cache: FileCache,
+    season: str,
+    dungeon_slug: str,
+    num_bosses: int,
+) -> list[float | None]:
+    """Same as :func:`collect_observed_ratios` but caches on disk.
+
+    Cache key: ``ratios/<season>/<dungeon_slug>``. The caller is responsible
+    for instantiating ``cache`` with ``ttl_seconds=7*24*3600`` (or whatever
+    refresh cadence is desired). Note that ``FileCache`` only supports a
+    single global TTL per instance — use a dedicated instance for ratios.
+    """
+    key = f"ratios/{season}/{dungeon_slug}"
+    cached_bytes = cache.get(key)
+    if cached_bytes is not None:
+        try:
+            decoded = json.loads(cached_bytes.decode("utf-8"))
+            if isinstance(decoded, list) and len(decoded) == num_bosses:
+                # Restore None values (JSON null -> None) and coerce floats
+                return [None if v is None else float(v) for v in decoded]
+        except (ValueError, TypeError, UnicodeDecodeError):
+            pass  # fall through, recompute
+    ratios = collect_observed_ratios(client, season, dungeon_slug, num_bosses)
+    cache.set(key, json.dumps(ratios).encode("utf-8"))
+    return ratios
 
 
 def synthesize_splits(
