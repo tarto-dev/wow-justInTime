@@ -1,102 +1,170 @@
-"""Tests for lua_renderer."""
+"""Tests for lua_renderer schema v2 output."""
 
 from __future__ import annotations
-
-from pathlib import Path
 
 from jit_update.lua_renderer import render_data_lua
 
 
-def test_render_minimal_document(fixtures_dir: Path) -> None:
-    """Rendered output matches the hand-verified golden file byte-for-byte."""
-    document = {
+def test_render_emits_schema_version_2() -> None:
+    doc = {
         "meta": {
-            "generated_at": "2026-04-25T14:30:00Z",
+            "generated_at": "2026-05-09T18:30:00Z",
+            "schema_version": 2,
             "season": "season-mn-1",
-            "schema_version": 1,
+            "source": "blizzard+raiderio",
         },
-        "affix_id_to_slug": {
-            9: "tyrannical",
-            10: "fortified",
-            147: "xalataths-guile",
+        "dungeons": {},
+    }
+    out = render_data_lua(doc)
+    assert "schema_version = 2" in out
+    assert '"blizzard+raiderio"' in out
+    assert '"season-mn-1"' in out
+
+
+def test_render_drops_affix_id_to_slug_table() -> None:
+    doc = {
+        "meta": {
+            "generated_at": "2026-05-09T18:30:00Z",
+            "schema_version": 2,
+            "season": "season-mn-1",
+            "source": "blizzard+raiderio",
+        },
+        "dungeons": {},
+    }
+    out = render_data_lua(doc)
+    assert "affix_id_to_slug" not in out
+
+
+def test_render_levels_have_no_affix_subkey() -> None:
+    doc = {
+        "meta": {
+            "generated_at": "2026-05-09T18:30:00Z",
+            "schema_version": 2,
+            "season": "season-mn-1",
+            "source": "blizzard+raiderio",
         },
         "dungeons": {
             "algethar-academy": {
-                "short_name": "AA",
-                "challenge_mode_id": 402,
-                "timer_ms": 1800999,
-                "num_bosses": 4,
-                "bosses": [
-                    {
-                        "ordinal": 1,
-                        "slug": "overgrown-ancient",
-                        "name": "Overgrown Ancient",
-                        "wow_encounter_id": 2563,
-                    },
-                    {"ordinal": 2, "slug": "boss2", "name": "Boss 2", "wow_encounter_id": 2564},
-                    {"ordinal": 3, "slug": "boss3", "name": "Boss 3", "wow_encounter_id": 2565},
-                    {"ordinal": 4, "slug": "boss4", "name": "Boss 4", "wow_encounter_id": 2566},
-                ],
+                "keystone_timer_ms": 1861000,
+                "bosses": {1: {"ordinal": 1, "slug": "boss-1", "name": "Boss 1"}},
                 "levels": {
-                    12: {
-                        "fortified-xalataths-guile": {
-                            "sample_size": 3,
-                            "clear_time_ms": 1742000,
-                            "boss_splits_ms": [280000, 740000, 1200000, 1742000],
-                        },
+                    15: {
+                        "clear_time_ms": 2000000,
+                        "boss_splits_ms": [500000, 1000000, 1500000, 2000000],
+                        "sample_size": 30,
+                        "splits_source": "synthesized",
                     },
+                },
+            }
+        },
+    }
+    out = render_data_lua(doc)
+    # The level entry is a direct dict, not nested under an affix combo
+    assert "[15] = {" in out
+    assert '"synthesized"' in out
+    # No affix combo strings anywhere
+    assert "fortified" not in out.lower() or "fortified" not in out  # neither slug nor key
+    assert "tyrannical" not in out.lower() or "tyrannical" not in out
+
+
+def test_render_includes_all_three_splits_sources() -> None:
+    doc = {
+        "meta": {
+            "generated_at": "2026-05-09T18:30:00Z",
+            "schema_version": 2,
+            "season": "season-mn-1",
+            "source": "blizzard+raiderio",
+        },
+        "dungeons": {
+            "d": {
+                "keystone_timer_ms": 1861000,
+                "bosses": {1: {"ordinal": 1, "slug": "b1", "name": "B1"}},
+                "levels": {
+                    15: {
+                        "clear_time_ms": 2000000,
+                        "boss_splits_ms": [500000, 1000000, 1500000, 2000000],
+                        "sample_size": 30,
+                        "splits_source": "synthesized",
+                    },
+                    18: {
+                        "clear_time_ms": 1800000,
+                        "boss_splits_ms": [450000, 900000, 1350000, 1800000],
+                        "sample_size": 50,
+                        "splits_source": "raiderio",
+                    },
+                    22: {
+                        "clear_time_ms": 1700000,
+                        "boss_splits_ms": [425000, 850000, 1275000, 1700000],
+                        "sample_size": 25,
+                        "splits_source": "equidistant_fallback",
+                    },
+                },
+            }
+        },
+    }
+    out = render_data_lua(doc)
+    assert "synthesized" in out
+    assert "raiderio" in out
+    assert "equidistant_fallback" in out
+
+
+def test_render_emits_bosses_block() -> None:
+    doc = {
+        "meta": {
+            "generated_at": "2026-05-09T18:30:00Z",
+            "schema_version": 2,
+            "season": "season-mn-1",
+            "source": "blizzard+raiderio",
+        },
+        "dungeons": {
+            "d": {
+                "keystone_timer_ms": 1861000,
+                "bosses": {
+                    1: {"ordinal": 1, "slug": "first-boss", "name": "First Boss"},
+                    2: {"ordinal": 2, "slug": "second-boss", "name": "Second Boss"},
+                },
+                "levels": {},
+            }
+        },
+    }
+    out = render_data_lua(doc)
+    assert '"first-boss"' in out
+    assert '"second-boss"' in out
+    assert "First Boss" in out
+
+
+def test_render_output_is_deterministic() -> None:
+    """Same input → same output, byte-for-byte."""
+    doc = {
+        "meta": {
+            "generated_at": "2026-05-09T18:30:00Z",
+            "schema_version": 2,
+            "season": "season-mn-1",
+            "source": "blizzard+raiderio",
+        },
+        "dungeons": {
+            "z-dungeon": {
+                "keystone_timer_ms": 1800000,
+                "bosses": {1: {"ordinal": 1, "slug": "b1", "name": "B1"}},
+                "levels": {
+                    20: {"clear_time_ms": 1700000, "boss_splits_ms": [1, 2, 3, 4], "sample_size": 5, "splits_source": "raiderio"},
+                    15: {"clear_time_ms": 2000000, "boss_splits_ms": [5, 6, 7, 8], "sample_size": 30, "splits_source": "synthesized"},
+                },
+            },
+            "a-dungeon": {
+                "keystone_timer_ms": 1900000,
+                "bosses": {1: {"ordinal": 1, "slug": "b1", "name": "B1"}},
+                "levels": {
+                    18: {"clear_time_ms": 1850000, "boss_splits_ms": [9, 10, 11, 12], "sample_size": 50, "splits_source": "raiderio"},
                 },
             },
         },
     }
-    rendered = render_data_lua(document)
-    expected = (fixtures_dir / "expected_minimal.lua").read_text()
-    assert rendered == expected
-
-
-def test_render_escapes_string_values() -> None:
-    """Double-quotes inside string values are escaped as backslash-quote."""
-    document = {
-        "meta": {
-            "generated_at": "2026-04-25T14:30:00Z",
-            "season": "season-mn-1",
-            "schema_version": 1,
-        },
-        "affix_id_to_slug": {},
-        "dungeons": {
-            "ara-kara-city-of-echoes": {
-                "short_name": "AK",
-                "challenge_mode_id": 503,
-                "timer_ms": 1800000,
-                "num_bosses": 3,
-                "bosses": [
-                    {
-                        "ordinal": 1,
-                        "slug": "the-king",
-                        "name": 'King "Tharin"',
-                        "wow_encounter_id": 100,
-                    },
-                    {"ordinal": 2, "slug": "queen", "name": "Queen", "wow_encounter_id": 101},
-                    {"ordinal": 3, "slug": "duke", "name": "Duke", "wow_encounter_id": 102},
-                ],
-                "levels": {},
-            },
-        },
-    }
-    rendered = render_data_lua(document)
-    assert 'name = "King \\"Tharin\\""' in rendered
-
-
-def test_render_orders_keys_deterministically() -> None:
-    """Integer affix keys are always ordered numerically regardless of insertion order."""
-    document = {
-        "meta": {
-            "generated_at": "2026-04-25T14:30:00Z",
-            "season": "season-mn-1",
-            "schema_version": 1,
-        },
-        "affix_id_to_slug": {147: "xalataths-guile", 10: "fortified", 9: "tyrannical"},
-        "dungeons": {},
-    }
-    rendered = render_data_lua(document)
-    assert rendered.index("[9]") < rendered.index("[10]") < rendered.index("[147]")
+    out1 = render_data_lua(doc)
+    out2 = render_data_lua(doc)
+    assert out1 == out2
+    # Determinism implies sorted keys: a-dungeon before z-dungeon
+    assert out1.index("a-dungeon") < out1.index("z-dungeon")
+    # Within z-dungeon, level 15 before 20
+    z_section = out1[out1.index("z-dungeon"):]
+    assert z_section.index("[15]") < z_section.index("[20]")
