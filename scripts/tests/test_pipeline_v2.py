@@ -297,3 +297,162 @@ def test_aggregate_cell_raises_on_empty_runs() -> None:
 
     with pytest.raises(ValueError, match="at least one"):
         aggregate_cell([], [], [None, None, None, None], num_bosses=4)
+
+
+from datetime import datetime
+
+
+def test_build_document_from_discovered_assembles_meta_and_dungeons_with_v2_schema(
+    tmp_path: Any,
+) -> None:
+    from jit_update.cache import FileCache
+    from jit_update.pipeline import build_document_from_discovered
+
+    static = {
+        "seasons": [
+            {
+                "slug": "season-mn-1",
+                "dungeons": [
+                    {
+                        "slug": "algethar-academy",
+                        "id": 14032,
+                        "name": "Algeth'ar Academy",
+                        "short_name": "AA",
+                        "map_challenge_mode_id": 402,
+                        "keystone_timer_seconds": 1861,
+                        "num_bosses": 4,
+                    }
+                ],
+            }
+        ]
+    }
+
+    runs_at_15 = [
+        BlizzardRun(
+            dungeon_slug="algethar-academy", region="eu", realm_id=1, period=1062,
+            keystone_level=15, duration_ms=2000000, completed_timestamp=1,
+        ),
+        BlizzardRun(
+            dungeon_slug="algethar-academy", region="eu", realm_id=1, period=1062,
+            keystone_level=15, duration_ms=2050000, completed_timestamp=2,
+        ),
+    ] * 15  # 30 runs to clear min_sample
+    runs_at_22 = [
+        BlizzardRun(
+            dungeon_slug="algethar-academy", region="eu", realm_id=1, period=1062,
+            keystone_level=22, duration_ms=1700000, completed_timestamp=3,
+        ),
+    ] * 30
+    discovered = {"algethar-academy": {15: runs_at_15, 22: runs_at_22}}
+
+    class StubRaider:
+        def get_static_data(self, expansion_id: int) -> dict[str, Any]:
+            return static
+
+        def get_runs(
+            self, season: str, region: str, dungeon: str, page: int, affixes: str = "all"
+        ) -> dict[str, Any]:
+            return {"rankings": [{"run": {"keystone_run_id": 1, "mythic_level": 22}}]}
+
+        def get_run_details(self, season: str, run_id: int) -> dict[str, Any]:
+            return {
+                "season": season,
+                "status": "finished",
+                "keystone_run_id": run_id,
+                "mythic_level": 22,
+                "clear_time_ms": 1700000,
+                "keystone_time_ms": 1860999,
+                "completed_at": "2026-05-03T07:33:46.051Z",
+                "logged_run_id": 99,
+                "num_chests": 1,
+                "time_remaining_ms": 100000,
+                "weekly_modifiers": [],
+                "dungeon": {
+                    "id": 14032,
+                    "name": "Algeth'ar Academy",
+                    "slug": "algethar-academy",
+                    "short_name": "AA",
+                    "map_challenge_mode_id": 402,
+                    "keystone_timer_ms": 1860999,
+                    "num_bosses": 4,
+                },
+                "logged_details": {
+                    "encounters": [
+                        {
+                            "id": i,
+                            "status": "finished",
+                            "duration_ms": 1,
+                            "is_success": True,
+                            "approximate_relative_started_at": 0,
+                            "approximate_relative_ended_at": v,
+                            "boss": {
+                                "name": f"B{i}",
+                                "slug": f"b{i}",
+                                "ordinal": i,
+                                "wowEncounterId": 1000 + i,
+                            },
+                        }
+                        for i, v in enumerate([425000, 850000, 1275000, 1700000])
+                    ]
+                },
+            }
+
+    cache = FileCache(tmp_path / "ratios_cache", ttl_seconds=7 * 24 * 3600)
+
+    cfg = type("Cfg", (), {})()
+    cfg.raiderio = type(
+        "R", (), {"expansion_id": 11, "season": "season-mn-1", "region": "world"}
+    )()
+    cfg.scope = type(
+        "S", (), {"levels": [15, 16, 17, 18, 19, 20, 21, 22], "min_sample": 20, "slowest_percentile": 10}
+    )()
+    cfg.output = type("O", (), {"schema_version": 2})()
+
+    doc = build_document_from_discovered(
+        discovered, StubRaider(), cache, cfg, datetime(2026, 5, 9, 18, 30, 0)
+    )
+
+    assert doc["meta"]["schema_version"] == 2
+    assert doc["meta"]["season"] == "season-mn-1"
+    assert doc["meta"]["source"] == "blizzard+raiderio"
+    assert "algethar-academy" in doc["dungeons"]
+    aa = doc["dungeons"]["algethar-academy"]
+    assert aa["keystone_timer_ms"] == 1861000
+    assert 15 in aa["levels"]
+    assert 22 in aa["levels"]
+    # No affix sub-key — direct cell dict
+    assert "boss_splits_ms" in aa["levels"][15]
+    assert aa["levels"][15]["splits_source"] == "synthesized"
+    assert aa["levels"][22]["splits_source"] == "raiderio"
+
+
+def test_merge_discovered_concatenates_run_lists() -> None:
+    from jit_update.pipeline import merge_discovered
+
+    eu_runs = [
+        BlizzardRun(
+            dungeon_slug="d", region="eu", realm_id=1, period=1,
+            keystone_level=15, duration_ms=2_000_000, completed_timestamp=1,
+        ),
+    ]
+    us_runs = [
+        BlizzardRun(
+            dungeon_slug="d", region="us", realm_id=2, period=1,
+            keystone_level=15, duration_ms=2_100_000, completed_timestamp=2,
+        ),
+        BlizzardRun(
+            dungeon_slug="d", region="us", realm_id=2, period=1,
+            keystone_level=22, duration_ms=1_700_000, completed_timestamp=3,
+        ),
+    ]
+    eu = {"d": {15: eu_runs}}
+    us = {"d": {15: us_runs[:1], 22: us_runs[1:]}}
+
+    merged = merge_discovered(eu, us)
+
+    assert set(merged.keys()) == {"d"}
+    assert sorted(merged["d"].keys()) == [15, 22]
+    assert len(merged["d"][15]) == 2  # 1 EU + 1 US
+    assert len(merged["d"][22]) == 1  # only US
+    # Region tags preserved
+    assert {r.region for r in merged["d"][15]} == {"eu", "us"}

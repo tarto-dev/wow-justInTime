@@ -509,3 +509,137 @@ def aggregate_cell(
         boss_splits_ms=boss_splits,
         splits_source=source,  # type: ignore[arg-type]
     )
+
+
+def merge_discovered(
+    *partials: dict[str, dict[int, list[BlizzardRun]]],
+) -> dict[str, dict[int, list[BlizzardRun]]]:
+    """Merge multiple discovered-runs dicts (one per region) into one.
+
+    Concatenates run lists at each (dungeon_slug, level) coordinate.
+    """
+    merged: dict[str, dict[int, list[BlizzardRun]]] = {}
+    for partial in partials:
+        for slug, levels_dict in partial.items():
+            target = merged.setdefault(slug, {})
+            for level, runs in levels_dict.items():
+                target.setdefault(level, []).extend(runs)
+    return merged
+
+
+def _bosses_block_from_static(dungeon: dict[str, Any]) -> dict[int, dict[str, Any]]:
+    """Build the bosses sub-table from static data, 1-indexed by ordinal+1.
+
+    Falls back to placeholder entries if static data lacks a bosses array but
+    declares ``num_bosses`` (so renderer output is at least non-empty).
+    """
+    bosses_in = dungeon.get("bosses") or []
+    out: dict[int, dict[str, Any]] = {}
+    for b in bosses_in:
+        ordinal = int(b.get("ordinal", 0))
+        out[ordinal + 1] = {
+            "ordinal": ordinal + 1,
+            "slug": b.get("slug", ""),
+            "name": b.get("name", ""),
+        }
+    if not out and dungeon.get("num_bosses"):
+        for i in range(int(dungeon["num_bosses"])):
+            out[i + 1] = {"ordinal": i + 1, "slug": f"boss-{i+1}", "name": f"Boss {i+1}"}
+    return out
+
+
+def build_document_from_discovered(
+    discovered: dict[str, dict[int, list[BlizzardRun]]],
+    raiderio: RaiderIOClientLike,
+    cache: Any,  # FileCache; typed Any to avoid circular import at type-check time
+    config: Any,
+    now: datetime,
+) -> dict[str, Any]:
+    """Assemble a Data.lua document dict (schema v2) from pre-discovered Blizzard runs.
+
+    Multi-region merging is the caller's job (use ``merge_discovered``).
+
+    Args:
+        discovered: ``{dungeon_slug: {level: [BlizzardRun]}}`` (post-merge).
+        raiderio:   Raider.IO client used for static data + ratio collection
+                    + real-splits indexing.
+        cache:      FileCache instance for the ratios cache (caller controls
+                    its TTL, recommended 7 days per spec).
+        config:     A jit_update Config (or duck-compatible) exposing
+                    ``raiderio.expansion_id``, ``raiderio.season``,
+                    ``scope.levels``, ``scope.min_sample``,
+                    ``scope.slowest_percentile``.
+        now:        Timestamp embedded in ``meta.generated_at``.
+
+    Returns:
+        A dict matching Data.lua schema v2:
+        ``{"meta": {...}, "dungeons": {slug: {keystone_timer_ms, bosses, levels: {L: cell}}}}``
+    """
+    from jit_update.splits_synthesis import collect_observed_ratios_cached
+
+    static = raiderio.get_static_data(expansion_id=config.raiderio.expansion_id)
+    season_obj = next(
+        (s for s in static.get("seasons", []) if s.get("slug") == config.raiderio.season),
+        None,
+    )
+    if season_obj is None:
+        raise RuntimeError(f"season {config.raiderio.season!r} not in static data")
+    season_dungeons = season_obj["dungeons"]
+
+    document: dict[str, Any] = {
+        "meta": {
+            "generated_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "season": config.raiderio.season,
+            "schema_version": 2,
+            "source": "blizzard+raiderio",
+        },
+        "dungeons": {},
+    }
+
+    for dungeon in season_dungeons:
+        slug = dungeon["slug"]
+        num_bosses = int(dungeon.get("num_bosses", 0))
+        timer_ms = int(dungeon["keystone_timer_seconds"]) * 1000
+
+        observed_ratios = collect_observed_ratios_cached(
+            raiderio, cache, season=config.raiderio.season, dungeon_slug=slug,
+            num_bosses=num_bosses,
+        )
+
+        real_splits_by_level = index_real_splits_by_level(
+            raiderio,
+            season=config.raiderio.season,
+            dungeon_slug=slug,
+            levels_in_scope=list(config.scope.levels),
+            num_bosses=num_bosses,
+        )
+
+        levels_block: dict[int, dict[str, Any]] = {}
+        for level, runs in discovered.get(slug, {}).items():
+            if len(runs) < config.scope.min_sample:
+                continue
+            sample = select_slowest_percentile(
+                runs,
+                percentile=config.scope.slowest_percentile,
+                min_count=2,
+            )
+            cell = aggregate_cell(
+                blizzard_runs=sample,
+                real_splits_at_level=real_splits_by_level.get(level, []),
+                observed_ratios=observed_ratios,
+                num_bosses=num_bosses,
+            )
+            levels_block[level] = {
+                "clear_time_ms": cell.clear_time_ms,
+                "boss_splits_ms": list(cell.boss_splits_ms),
+                "sample_size": cell.sample_size,
+                "splits_source": cell.splits_source,
+            }
+
+        document["dungeons"][slug] = {
+            "keystone_timer_ms": timer_ms,
+            "bosses": _bosses_block_from_static(dungeon),
+            "levels": levels_block,
+        }
+
+    return document
