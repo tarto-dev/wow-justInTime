@@ -79,16 +79,9 @@ def load_config(path: Path) -> Config:
 
     raiderio = RaiderIOConfig(**raw["raiderio"])
 
-    blizzard_section = raw.get("blizzard")
-    if blizzard_section is None:
+    if raw.get("blizzard") is None:
         raise ValueError(f"missing [blizzard] section in {path}")
-    blizzard = BlizzardConfig(
-        regions=list(blizzard_section["regions"]),
-        rate_per_second=float(blizzard_section["rate_per_second"]),
-        cache_ttl_seconds=float(blizzard_section["cache_ttl_seconds"]),
-        timeout_seconds=float(blizzard_section["timeout_seconds"]),
-        max_retries=int(blizzard_section["max_retries"]),
-    )
+    blizzard = BlizzardConfig(**raw["blizzard"])
 
     scope = ScopeConfig(**raw["scope"])
     output = OutputConfig(**raw["output"])
