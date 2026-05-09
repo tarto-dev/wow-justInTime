@@ -283,3 +283,94 @@ def build_document(
         }
 
     return document
+
+
+# ─── v2 (Blizzard-driven) ──────────────────────────────────────────────────
+# Below: rewritten pipeline that consumes BlizzardRun directly. The old
+# build_document / select_slowest_percentile (Run-typed) above stay for now;
+# Task 13 will remove them once the new flow is fully wired in cli.py.
+
+from collections import defaultdict
+
+from jit_update.models import BlizzardRun
+
+
+class BlizzardClientLike(Protocol):
+    """Protocol matching what the pipeline needs from the Blizzard client."""
+
+    def get_current_period_id(self) -> int: ...
+
+    def get_connected_realms_index(self) -> list[int]: ...
+
+    def get_leaderboard_runs(
+        self,
+        *,
+        realm_id: int,
+        dungeon_id: int,
+        period_id: int,
+        dungeon_slug: str,
+    ) -> list[BlizzardRun]: ...
+
+
+def discover_runs(
+    blizz: BlizzardClientLike,
+    *,
+    dungeons: list[dict[str, Any]],
+    levels: list[int],
+) -> dict[str, dict[int, list[BlizzardRun]]]:
+    """Iterate (realm, dungeon) for the current period, accumulate runs by (dungeon, level).
+
+    Args:
+        blizz: BlizzardClient (real or fake).
+        dungeons: Dungeon descriptors with at least 'slug' and 'map_challenge_mode_id'.
+        levels: Allowed keystone levels; runs outside this set are dropped.
+
+    Returns:
+        ``{dungeon_slug: {keystone_level: [BlizzardRun, ...]}}``
+    """
+    period_id = blizz.get_current_period_id()
+    realm_ids = blizz.get_connected_realms_index()
+    levels_set = set(levels)
+    accumulator: dict[str, dict[int, list[BlizzardRun]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
+
+    for dungeon in dungeons:
+        slug = dungeon["slug"]
+        dungeon_id = int(dungeon["map_challenge_mode_id"])
+        for realm_id in realm_ids:
+            runs = blizz.get_leaderboard_runs(
+                realm_id=realm_id,
+                dungeon_id=dungeon_id,
+                period_id=period_id,
+                dungeon_slug=slug,
+            )
+            for run in runs:
+                if run.keystone_level not in levels_set:
+                    continue
+                accumulator[slug][run.keystone_level].append(run)
+
+    return {slug: dict(levels_dict) for slug, levels_dict in accumulator.items()}
+
+
+def select_slowest_percentile(  # type: ignore[misc]
+    runs: list[BlizzardRun],
+    percentile: int,
+    min_count: int = 2,
+) -> list[BlizzardRun]:
+    """Return the slowest ``percentile`` % of runs by ``duration_ms``.
+
+    Result count is ``max(min_count, floor(len(runs) * percentile / 100))``
+    capped at ``len(runs)``. Runs are sorted by ``duration_ms`` descending
+    (slowest first); the returned list is the first N entries of that sort.
+
+    Raises:
+        ValueError: if ``percentile`` is outside [0, 100].
+    """
+    if not 0 <= percentile <= 100:
+        raise ValueError(f"percentile must be in [0, 100], got {percentile}")
+    if not runs:
+        return []
+    count = max(min_count, math.floor(len(runs) * percentile / 100))
+    count = min(count, len(runs))
+    return sorted(runs, key=lambda r: r.duration_ms, reverse=True)[:count]
