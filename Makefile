@@ -14,6 +14,14 @@ ADDON_ZIP      := $(ADDON_DIR)/$(ADDON_NAME)-v$(ADDON_VERSION).zip
 
 UV             := uv
 
+# ─── Auto-load .env if present (gitignored) ────────────────────────────────
+# Lets you store BLIZZARD_CLIENT_ID / BLIZZARD_CLIENT_SECRET locally without
+# polluting your shell profile. Format: KEY=value lines, no shell quoting.
+ifneq (,$(wildcard .env))
+include .env
+export
+endif
+
 .DEFAULT_GOAL  := help
 
 # ─── Help ──────────────────────────────────────────────────────────────────

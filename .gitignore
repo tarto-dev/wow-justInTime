@@ -2,3 +2,6 @@
 *.zip
 .claude/settings.local.json
 .superpowers/
+.env
+.env.local
+.env.*.local
