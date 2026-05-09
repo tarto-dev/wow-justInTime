@@ -1,0 +1,23 @@
+{
+  "season": "season-mn-1",
+  "status": "finished",
+  "keystone_run_id": 22426791,
+  "mythic_level": 22,
+  "clear_time_ms": 1774898,
+  "keystone_time_ms": 1860999,
+  "num_chests": 1,
+  "time_remaining_ms": 86101,
+  "completed_at": "2026-05-06T17:09:31.000Z",
+  "weekly_modifiers": [],
+  "dungeon": {
+    "id": 14032,
+    "name": "Algeth'ar Academy",
+    "short_name": "AA",
+    "slug": "algethar-academy",
+    "map_challenge_mode_id": 402,
+    "keystone_timer_ms": 1860999,
+    "num_bosses": 4
+  },
+  "logged_run_id": null,
+  "logged_details": null
+}
