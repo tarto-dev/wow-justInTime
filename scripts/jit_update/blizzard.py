@@ -170,6 +170,64 @@ class BlizzardClient:
             raise BlizzardError(f"unexpected /period/index payload: {payload!r}")
         return int(period["id"])
 
+    def get_connected_realms_index(self) -> list[int]:
+        """Return all connected-realm IDs for the configured region.
+
+        Parses the ``connected_realms[].href`` URLs to extract numeric IDs.
+        """
+        import re
+
+        payload = self._request_json("/data/wow/connected-realm/index")
+        result: list[int] = []
+        for item in payload.get("connected_realms", []):
+            href = item.get("href", "")
+            m = re.search(r"/connected-realm/(\d+)", href)
+            if m:
+                result.append(int(m.group(1)))
+        return result
+
+    def get_dungeons_index(self) -> dict[int, str]:
+        """Return mapping ``dungeon_id -> dungeon name`` (English locale)."""
+        payload = self._request_json("/data/wow/mythic-keystone/dungeon/index")
+        return {
+            int(d["id"]): d["name"]
+            for d in payload.get("dungeons", [])
+            if "id" in d and "name" in d
+        }
+
+    def get_leaderboard_runs(
+        self,
+        *,
+        realm_id: int,
+        dungeon_id: int,
+        period_id: int,
+        dungeon_slug: str,
+    ) -> list["BlizzardRun"]:
+        """Return normalized BlizzardRun objects for one realm/dungeon/period leaderboard.
+
+        The Blizzard payload is parsed via ``BlizzardLeaderboardResponse`` and each
+        leading_group is wrapped in a ``BlizzardRun`` carrying the dungeon slug,
+        region, realm_id, and period that the raw response omits.
+        """
+        from jit_update.models import BlizzardLeaderboardResponse, BlizzardRun
+
+        path = (
+            f"/data/wow/connected-realm/{realm_id}"
+            f"/mythic-leaderboard/{dungeon_id}/period/{period_id}"
+        )
+        payload = self._request_json(path)
+        parsed = BlizzardLeaderboardResponse.model_validate(payload)
+        return [
+            BlizzardRun.from_group(
+                g,
+                dungeon_slug=dungeon_slug,
+                region=self._region,
+                realm_id=realm_id,
+                period=period_id,
+            )
+            for g in parsed.leading_groups
+        ]
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------

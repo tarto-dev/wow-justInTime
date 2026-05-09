@@ -101,3 +101,80 @@ def test_client_raises_on_repeated_401(client: BlizzardClient) -> None:
     )
     with pytest.raises(BlizzardError, match="unauthorized|401"):
         client.get_current_period_id()
+
+
+import json
+
+
+FIXTURE_DIR = Path(__file__).parent / "fixtures"
+
+
+@respx.mock
+def test_get_connected_realms_index_returns_realm_ids(client: BlizzardClient) -> None:
+    respx.post("https://oauth.battle.net/token").mock(
+        return_value=httpx.Response(
+            200, json={"access_token": "t", "expires_in": 86400}
+        )
+    )
+    respx.get("https://eu.api.blizzard.com/data/wow/connected-realm/index").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "connected_realms": [
+                    {"href": "https://eu.api.blizzard.com/data/wow/connected-realm/1080?namespace=dynamic-eu"},
+                    {"href": "https://eu.api.blizzard.com/data/wow/connected-realm/1084?namespace=dynamic-eu"},
+                ]
+            },
+        )
+    )
+    realms = client.get_connected_realms_index()
+    assert realms == [1080, 1084]
+
+
+@respx.mock
+def test_get_dungeons_index_returns_id_to_name_mapping(client: BlizzardClient) -> None:
+    respx.post("https://oauth.battle.net/token").mock(
+        return_value=httpx.Response(
+            200, json={"access_token": "t", "expires_in": 86400}
+        )
+    )
+    respx.get("https://eu.api.blizzard.com/data/wow/mythic-keystone/dungeon/index").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "dungeons": [
+                    {"id": 402, "name": "Algeth'ar Academy"},
+                    {"id": 499, "name": "Priory of the Sacred Flame"},
+                    {"id": 500, "name": "The Rookery"},
+                ]
+            },
+        )
+    )
+    mapping = client.get_dungeons_index()
+    assert mapping == {
+        402: "Algeth'ar Academy",
+        499: "Priory of the Sacred Flame",
+        500: "The Rookery",
+    }
+
+
+@respx.mock
+def test_get_leaderboard_runs_parses_leading_groups(client: BlizzardClient) -> None:
+    sample = json.loads((FIXTURE_DIR / "blizzard_leaderboard_sample.json").read_text())
+    respx.post("https://oauth.battle.net/token").mock(
+        return_value=httpx.Response(
+            200, json={"access_token": "t", "expires_in": 86400}
+        )
+    )
+    respx.get(
+        "https://eu.api.blizzard.com/data/wow/connected-realm/1080/mythic-leaderboard/402/period/1062"
+    ).mock(return_value=httpx.Response(200, json=sample))
+    runs = client.get_leaderboard_runs(
+        realm_id=1080,
+        dungeon_id=402,
+        period_id=1062,
+        dungeon_slug="algethar-academy",
+    )
+    assert len(runs) == 3
+    assert {r.keystone_level for r in runs} == {15, 16, 19}
+    assert all(r.realm_id == 1080 and r.region == "eu" for r in runs)
