@@ -82,6 +82,8 @@ local fr = {
     DATA_STALE            = "⚠ données de référence vieilles de %d jours",
     DATA_MISSING          = "⚠ référence indisponible — mode publique désactivé",
     DATA_SCHEMA_INVALID   = "⚠ référence invalide — mode publique désactivé",
+    MISSING_DATA          = "Données de référence introuvables. L'addon est peut-être mal installé.",
+    OUTDATED_DATA         = "Données de référence obsolètes. Mets à jour l'addon ou regenère Data.lua.",
 
     NO_PERSO_RUNS         = "pas encore de run perso ici, fallback sur public",
     NO_REF_AT_ALL         = "réf indispo (cellule vide)",
@@ -157,6 +159,8 @@ local en = {
     DATA_STALE            = "⚠ reference data is %d days old",
     DATA_MISSING          = "⚠ reference unavailable — public mode disabled",
     DATA_SCHEMA_INVALID   = "⚠ reference invalid — public mode disabled",
+    MISSING_DATA          = "Reference data missing. The addon may be incorrectly installed.",
+    OUTDATED_DATA         = "Reference data is outdated. Update the addon or regenerate Data.lua.",
 
     NO_PERSO_RUNS         = "no personal runs here yet, falling back to public",
     NO_REF_AT_ALL         = "ref unavailable (empty cell)",

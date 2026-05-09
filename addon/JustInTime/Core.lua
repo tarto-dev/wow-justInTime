@@ -4,6 +4,23 @@ local TAG = (NS.Util and NS.Util.TAG_INFO) or "|cffffcc00[JIT]|r"
 
 local function L(key) return NS.L and NS.L[key] or key end
 
+-- ─── Schema version guard ───────────────────────────────────────────────────
+-- Must be v2+ (populated by `make data`). Aborts init entirely if missing or
+-- wrong version so no consumer ever sees a stale/absent Data.lua.
+-- Uses print(TAG..) directly — Core.lua loads before ChatPrinter is wired.
+
+local function checkSchema()
+    if not (JustInTimeData and JustInTimeData.meta) then
+        print(TAG .. " " .. L("MISSING_DATA"))
+        return false
+    end
+    if JustInTimeData.meta.schema_version ~= 2 then
+        print(TAG .. " " .. L("OUTDATED_DATA"))
+        return false
+    end
+    return true
+end
+
 -- ─── Schema validation at load ──────────────────────────────────────────────
 
 local function validateDataLuaSchema()
@@ -45,6 +62,10 @@ local eventFrame = CreateFrame("Frame")
 
 local function onAddonLoaded(name)
     if name ~= addonName then return end
+
+    if not checkSchema() then
+        return  -- abort init: don't register events, don't draw overlay
+    end
 
     if NS.State then NS.State.Init() end
     if NS.Config then NS.Config.BuildPanel() end
