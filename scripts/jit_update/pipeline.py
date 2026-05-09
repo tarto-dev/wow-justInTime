@@ -322,7 +322,7 @@ def discover_runs(
 
     Args:
         blizz: BlizzardClient (real or fake).
-        dungeons: Dungeon descriptors with at least 'slug' and 'map_challenge_mode_id'.
+        dungeons: Dungeon descriptors with at least 'slug' and 'challenge_mode_id'.
         levels: Allowed keystone levels; runs outside this set are dropped.
 
     Returns:
@@ -337,7 +337,7 @@ def discover_runs(
 
     for dungeon in dungeons:
         slug = dungeon["slug"]
-        dungeon_id = int(dungeon["map_challenge_mode_id"])
+        dungeon_id = int(dungeon["challenge_mode_id"])
         for realm_id in realm_ids:
             runs = blizz.get_leaderboard_runs(
                 realm_id=realm_id,
@@ -551,6 +551,56 @@ def _bosses_block_from_static(dungeon: dict[str, Any]) -> list[dict[str, Any]]:
     return out
 
 
+def _extract_bosses_from_raiderio_runs(
+    raiderio: RaiderIOClientLike,
+    *,
+    season: str,
+    dungeon_slug: str,
+) -> tuple[int, list[dict[str, Any]]]:
+    """Extract num_bosses + bosses metadata from Raider.IO RunDetails.
+
+    Hits ``/runs?page=0`` and walks the encounters of the first run with
+    a populated ``logged_details.encounters`` list. Returns ``(num_bosses,
+    bosses_list)`` where each boss is ``{ordinal, slug, name}`` (0-indexed
+    ordinal) sorted by ordinal.
+
+    If no run has logged encounters, returns ``(0, [])`` and the caller
+    must fall back to a placeholder. The dungeon's static data does NOT
+    expose num_bosses or bosses, so this enrichment is the only reliable
+    source short of hard-coding per-dungeon defaults.
+    """
+    payload = raiderio.get_runs(season=season, region="world", dungeon=dungeon_slug, page=0)
+    bosses_by_ordinal: dict[int, dict[str, Any]] = {}
+    for r in payload.get("rankings", []):
+        run = r.get("run", {})
+        run_id = run.get("keystone_run_id")
+        if run_id is None:
+            continue
+        try:
+            details = RunDetails.model_validate(
+                raiderio.get_run_details(season=season, run_id=run_id)
+            )
+        except Exception:
+            continue
+        if not details.encounters:
+            continue
+        for enc in details.encounters:
+            ord_val = int(enc.boss.ordinal)
+            if ord_val not in bosses_by_ordinal:
+                bosses_by_ordinal[ord_val] = {
+                    "ordinal": ord_val,
+                    "slug": enc.boss.slug,
+                    "name": enc.boss.name,
+                }
+        # Once we have a stable set of bosses, we can stop. But keep going if
+        # different runs have different boss sets (some routes skip optionals).
+        if bosses_by_ordinal and len(bosses_by_ordinal) >= 4:
+            # Most M+ dungeons cap at 4 bosses; bail early to save calls.
+            break
+    bosses_list = sorted(bosses_by_ordinal.values(), key=lambda b: b["ordinal"])
+    return len(bosses_list), bosses_list
+
+
 def build_document_from_discovered(
     discovered: dict[str, dict[int, list[BlizzardRun]]],
     raiderio: RaiderIOClientLike,
@@ -601,8 +651,19 @@ def build_document_from_discovered(
 
     for dungeon in season_dungeons:
         slug = dungeon["slug"]
-        num_bosses = int(dungeon.get("num_bosses", 0))
         timer_ms = int(dungeon["keystone_timer_seconds"]) * 1000
+
+        # Extract num_bosses + bosses metadata (static_data doesn't expose them)
+        num_bosses, bosses_block = _extract_bosses_from_raiderio_runs(
+            raiderio, season=config.raiderio.season, dungeon_slug=slug,
+        )
+        if num_bosses == 0:
+            # Fallback: 4 bosses with placeholder names (matches v1 fallback)
+            num_bosses = 4
+            bosses_block = [
+                {"ordinal": i, "slug": f"boss-{i+1}", "name": f"Boss {i+1}"}
+                for i in range(num_bosses)
+            ]
 
         observed_ratios = collect_observed_ratios_cached(
             raiderio, cache, season=config.raiderio.season, dungeon_slug=slug,
@@ -640,11 +701,11 @@ def build_document_from_discovered(
             }
 
         document["dungeons"][slug] = {
-            "challenge_mode_id": int(dungeon.get("map_challenge_mode_id", 0)),
+            "challenge_mode_id": int(dungeon.get("challenge_mode_id", 0)),
             "num_bosses": num_bosses,
             "short_name": dungeon.get("short_name", ""),
             "timer_ms": timer_ms,
-            "bosses": _bosses_block_from_static(dungeon),
+            "bosses": bosses_block,
             "levels": levels_block,
         }
 

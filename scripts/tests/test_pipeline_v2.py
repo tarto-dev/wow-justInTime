@@ -67,7 +67,7 @@ def test_discover_runs_aggregates_by_dungeon_and_level() -> None:
     blizz = StubBlizzardClient(
         period_id=1062, realm_ids=[1080, 1084], runs_by_realm_dungeon=runs_by_realm
     )
-    dungeons = [{"slug": "algethar-academy", "map_challenge_mode_id": 402}]
+    dungeons = [{"slug": "algethar-academy", "challenge_mode_id": 402}]
 
     result = discover_runs(blizz, dungeons=dungeons, levels=[15, 19])
 
@@ -92,7 +92,7 @@ def test_discover_runs_filters_levels_outside_scope() -> None:
     blizz = StubBlizzardClient(
         period_id=1062, realm_ids=[1080], runs_by_realm_dungeon=runs_by_realm
     )
-    dungeons = [{"slug": "algethar-academy", "map_challenge_mode_id": 402}]
+    dungeons = [{"slug": "algethar-academy", "challenge_mode_id": 402}]
 
     result = discover_runs(blizz, dungeons=dungeons, levels=[15, 16, 17])
 
@@ -318,9 +318,9 @@ def test_build_document_from_discovered_assembles_meta_and_dungeons_with_v2_sche
                         "id": 14032,
                         "name": "Algeth'ar Academy",
                         "short_name": "AA",
+                        "challenge_mode_id": 402,
                         "map_challenge_mode_id": 402,
                         "keystone_timer_seconds": 1861,
-                        "num_bosses": 4,
                     }
                 ],
             }
