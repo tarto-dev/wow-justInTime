@@ -1,6 +1,22 @@
 JustInTime — Changelog
 =======================
 
+v0.4.0 — Data.lua schema v2: keystone +15-22 coverage (2026-05-09)
+------------------------------------------------------------------
+
+Features:
+- Reference data now covers Mythic+ keystone levels +15 to +22
+  (previously +18 to +20).
+- Reference timers now sourced from the Battle.net mythic-keystone-leaderboard
+  API for full level coverage. Boss splits at low levels are synthesized from
+  observed ratios at higher levels where real per-encounter data is available.
+
+Schema:
+- Data.lua schema bumped to v2: drops the per-affix-combo nesting under each
+  level (the addon didn't use it). Old Data.lua files (schema_version=1) are
+  detected and rejected with an explicit error message; reinstall or regenerate
+  to fix.
+
 v0.3.4 — Drop in-game self-tests (2026-04-27)
 ---------------------------------------------
 
