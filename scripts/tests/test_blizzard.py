@@ -159,6 +159,37 @@ def test_get_dungeons_index_returns_id_to_name_mapping(client: BlizzardClient) -
 
 
 @respx.mock
+def test_client_retries_on_500(client: BlizzardClient) -> None:
+    respx.post("https://oauth.battle.net/token").mock(
+        return_value=httpx.Response(
+            200, json={"access_token": "t", "expires_in": 86400}
+        )
+    )
+    respx.get("https://eu.api.blizzard.com/data/wow/mythic-keystone/period/index").mock(
+        side_effect=[
+            httpx.Response(500, text="Downstream Error"),
+            httpx.Response(200, json={"current_period": {"id": 1062}, "periods": []}),
+        ]
+    )
+    period_id = client.get_current_period_id()
+    assert period_id == 1062
+
+
+@respx.mock
+def test_client_raises_after_repeated_500(client: BlizzardClient) -> None:
+    respx.post("https://oauth.battle.net/token").mock(
+        return_value=httpx.Response(
+            200, json={"access_token": "t", "expires_in": 86400}
+        )
+    )
+    respx.get("https://eu.api.blizzard.com/data/wow/mythic-keystone/period/index").mock(
+        return_value=httpx.Response(500, text="Downstream Error")
+    )
+    with pytest.raises(BlizzardError, match="500|Downstream"):
+        client.get_current_period_id()
+
+
+@respx.mock
 def test_get_leaderboard_runs_parses_leading_groups(client: BlizzardClient) -> None:
     sample = json.loads((FIXTURE_DIR / "blizzard_leaderboard_sample.json").read_text())
     respx.post("https://oauth.battle.net/token").mock(

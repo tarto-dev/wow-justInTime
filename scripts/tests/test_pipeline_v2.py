@@ -431,6 +431,44 @@ def test_build_document_from_discovered_assembles_meta_and_dungeons_with_v2_sche
     assert isinstance(aa["bosses"], list)
 
 
+def test_discover_runs_skips_realms_that_raise_blizzard_error(capsys: pytest.CaptureFixture[str]) -> None:
+    from jit_update.blizzard import BlizzardError
+    from jit_update.pipeline import discover_runs
+
+    healthy_run = BlizzardRun(
+        dungeon_slug="algethar-academy", region="eu", realm_id=1080, period=1062,
+        keystone_level=18, duration_ms=1900000, completed_timestamp=1,
+    )
+
+    class FlakyBlizz:
+        def get_current_period_id(self) -> int:
+            return 1062
+
+        def get_connected_realms_index(self) -> list[int]:
+            return [1080, 1923]  # 1923 will fail
+
+        def get_leaderboard_runs(
+            self,
+            *,
+            realm_id: int,
+            dungeon_id: int,
+            period_id: int,
+            dungeon_slug: str,
+        ) -> list[BlizzardRun]:
+            if realm_id == 1923:
+                raise BlizzardError("status=500 Downstream Error")
+            return [healthy_run]
+
+    dungeons = [{"slug": "algethar-academy", "challenge_mode_id": 402}]
+    result = discover_runs(FlakyBlizz(), dungeons=dungeons, levels=[18])
+
+    assert "algethar-academy" in result
+    assert len(result["algethar-academy"][18]) == 1  # only the healthy realm's run
+    captured = capsys.readouterr()
+    assert "1923" in captured.err
+    assert "skipping" in captured.err.lower() or "skip" in captured.err.lower()
+
+
 def test_merge_discovered_concatenates_run_lists() -> None:
     from jit_update.pipeline import merge_discovered
 

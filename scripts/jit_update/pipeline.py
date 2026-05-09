@@ -7,6 +7,9 @@ import statistics
 from datetime import datetime
 from typing import Any, Protocol
 
+import sys
+
+from jit_update.blizzard import BlizzardError
 from jit_update.config import Config
 from jit_update.models import ReferenceCell, Run, RunDetails
 from jit_update.raiderio import RaiderIOError
@@ -339,12 +342,22 @@ def discover_runs(
         slug = dungeon["slug"]
         dungeon_id = int(dungeon["challenge_mode_id"])
         for realm_id in realm_ids:
-            runs = blizz.get_leaderboard_runs(
-                realm_id=realm_id,
-                dungeon_id=dungeon_id,
-                period_id=period_id,
-                dungeon_slug=slug,
-            )
+            try:
+                runs = blizz.get_leaderboard_runs(
+                    realm_id=realm_id,
+                    dungeon_id=dungeon_id,
+                    period_id=period_id,
+                    dungeon_slug=slug,
+                )
+            except BlizzardError as e:
+                # Per-realm-per-dungeon failure (often a transient 500 from
+                # Blizzard's downstream). Log and skip — losing one realm is
+                # cheaper than aborting the whole scrape.
+                print(
+                    f"[warn] discover_runs: skipping realm={realm_id} dungeon={slug} ({e})",
+                    file=sys.stderr,
+                )
+                continue
             for run in runs:
                 if run.keystone_level not in levels_set:
                     continue

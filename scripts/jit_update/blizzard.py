@@ -147,7 +147,7 @@ class BlizzardClient:
                 self._ensure_token(force_refresh=True)
                 attempted_refresh = True
                 continue
-            if resp.status_code in (429, 503):
+            if resp.status_code in (429, 500, 502, 503, 504):
                 if attempt < self._max_retries:
                     time.sleep(2**attempt)
                     continue
