@@ -233,3 +233,67 @@ def test_index_real_splits_by_level_groups_by_keystone_level() -> None:
     assert sorted(result.keys()) == [18, 22]
     assert result[22] == [splits_22]
     assert result[18] == [splits_18]
+
+
+def test_aggregate_cell_uses_raiderio_when_real_splits_present() -> None:
+    from jit_update.pipeline import aggregate_cell
+
+    runs = [
+        BlizzardRun(
+            dungeon_slug="d", region="eu", realm_id=1, period=1,
+            keystone_level=20, duration_ms=1700000, completed_timestamp=1,
+        ),
+        BlizzardRun(
+            dungeon_slug="d", region="eu", realm_id=1, period=1,
+            keystone_level=20, duration_ms=1750000, completed_timestamp=2,
+        ),
+    ]
+    real_splits_at_level = [[425000, 850000, 1275000, 1700000]]
+    observed_ratios: list[float | None] = [0.5, 0.5, 0.5, 0.5]  # would be wrong if used
+
+    cell = aggregate_cell(runs, real_splits_at_level, observed_ratios, num_bosses=4)
+    assert cell.splits_source == "raiderio"
+    # Median of [1700000, 1750000] = 1725000
+    assert cell.clear_time_ms == 1725000
+    # Median of one input list = the input itself
+    assert cell.boss_splits_ms == [425000, 850000, 1275000, 1700000]
+    assert cell.sample_size == 2
+
+
+def test_aggregate_cell_synthesizes_when_no_real_splits() -> None:
+    from jit_update.pipeline import aggregate_cell
+
+    runs = [
+        BlizzardRun(
+            dungeon_slug="d", region="eu", realm_id=1, period=1,
+            keystone_level=15, duration_ms=2000000, completed_timestamp=1,
+        ),
+    ]
+    real_splits_at_level: list[list[int]] = []
+    observed_ratios: list[float | None] = [0.25, 0.5, 0.75, 1.0]
+
+    cell = aggregate_cell(runs, real_splits_at_level, observed_ratios, num_bosses=4)
+    assert cell.splits_source == "synthesized"
+    assert cell.clear_time_ms == 2000000
+    assert cell.boss_splits_ms == [500000, 1000000, 1500000, 2000000]
+
+
+def test_aggregate_cell_falls_back_to_equidistant_when_no_ratios() -> None:
+    from jit_update.pipeline import aggregate_cell
+
+    runs = [
+        BlizzardRun(
+            dungeon_slug="d", region="eu", realm_id=1, period=1,
+            keystone_level=15, duration_ms=2000000, completed_timestamp=1,
+        ),
+    ]
+    cell = aggregate_cell(runs, [], [None, None, None, None], num_bosses=4)
+    assert cell.splits_source == "equidistant_fallback"
+    assert cell.boss_splits_ms == [500000, 1000000, 1500000, 2000000]
+
+
+def test_aggregate_cell_raises_on_empty_runs() -> None:
+    from jit_update.pipeline import aggregate_cell
+
+    with pytest.raises(ValueError, match="at least one"):
+        aggregate_cell([], [], [None, None, None, None], num_bosses=4)

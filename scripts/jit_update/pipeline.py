@@ -433,3 +433,79 @@ def index_real_splits_by_level(
         by_level[level].append(normalized)
 
     return dict(by_level)
+
+
+def _median_per_position_with_backfill(
+    splits_lists: list[list[int]],
+    num_bosses: int,
+    clear_time_median: int,
+) -> list[int]:
+    """Median per-ordinal across runs, with simple backfill for gaps.
+
+    For each ordinal i, gather non-zero values across runs and take the median.
+    If all runs are zero at ordinal i, backfill from neighbours: average of the
+    closest known earlier and later medians (using clear_time_median as the
+    end anchor when no later value exists, 0 when no earlier value exists).
+    """
+    medians: list[int] = []
+    for i in range(num_bosses):
+        values = [s[i] for s in splits_lists if i < len(s) and s[i] > 0]
+        medians.append(int(statistics.median(values)) if values else 0)
+    # Backfill zeros
+    for i in range(num_bosses):
+        if medians[i] != 0:
+            continue
+        prev_known = next(
+            (medians[j] for j in range(i - 1, -1, -1) if medians[j] > 0), 0
+        )
+        next_known = next(
+            (medians[j] for j in range(i + 1, num_bosses) if medians[j] > 0),
+            clear_time_median,
+        )
+        medians[i] = (prev_known + next_known) // 2
+    return medians
+
+
+def aggregate_cell(
+    blizzard_runs: list[BlizzardRun],
+    real_splits_at_level: list[list[int]],
+    observed_ratios: list[float | None],
+    num_bosses: int,
+) -> ReferenceCell:
+    """Build a ReferenceCell for one (dungeon, level) using three-tier splits source.
+
+    Tier 1: real Raider.IO splits at this level → median per position
+            (source="raiderio"). Falls through if the list is empty.
+    Tier 2: synthesize from observed_ratios + clear_time_median
+            (source="synthesized"). Falls through if all ratios are None.
+    Tier 3: equidistant fallback (source="equidistant_fallback").
+
+    Raises:
+        ValueError: if ``blizzard_runs`` is empty.
+    """
+    from jit_update.splits_synthesis import synthesize_splits
+
+    if not blizzard_runs:
+        raise ValueError("aggregate_cell requires at least one BlizzardRun")
+    clear_time_median = int(statistics.median(r.duration_ms for r in blizzard_runs))
+
+    if real_splits_at_level:
+        boss_splits = _median_per_position_with_backfill(
+            real_splits_at_level, num_bosses, clear_time_median
+        )
+        source: str = "raiderio"
+    elif any(r is not None for r in observed_ratios):
+        boss_splits = synthesize_splits(clear_time_median, observed_ratios, num_bosses)
+        source = "synthesized"
+    else:
+        boss_splits = [
+            round(clear_time_median * (i + 1) / num_bosses) for i in range(num_bosses)
+        ]
+        source = "equidistant_fallback"
+
+    return ReferenceCell(
+        sample_size=len(blizzard_runs),
+        clear_time_ms=clear_time_median,
+        boss_splits_ms=boss_splits,
+        splits_source=source,  # type: ignore[arg-type]
+    )
