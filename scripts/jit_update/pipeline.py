@@ -374,3 +374,62 @@ def select_slowest_percentile(  # type: ignore[misc]
     count = max(min_count, math.floor(len(runs) * percentile / 100))
     count = min(count, len(runs))
     return sorted(runs, key=lambda r: r.duration_ms, reverse=True)[:count]
+
+
+def index_real_splits_by_level(
+    raiderio: RaiderIOClientLike,
+    *,
+    season: str,
+    dungeon_slug: str,
+    levels_in_scope: list[int],
+    num_bosses: int,
+) -> dict[int, list[list[int]]]:
+    """Index Raider.IO top-page runs that have logged encounters, by keystone level.
+
+    Returns ``{level: [[boss_split_ms, ...], ...]}`` where each inner list is
+    one run's per-ordinal cumulative split. Only includes runs whose level is
+    in ``levels_in_scope`` AND whose ``logged_details.encounters`` is populated.
+    Splits are normalized to length ``num_bosses`` (truncate or pad with 0).
+    Runs whose splits are entirely zeros (no successful encounters at all) are
+    skipped entirely.
+
+    Args:
+        raiderio: Raider.IO client implementing :class:`RaiderIOClientLike`.
+        season: Season slug (e.g. ``"season-mn-1"``).
+        dungeon_slug: Dungeon slug (e.g. ``"algethar-academy"``).
+        levels_in_scope: Keystone levels to collect data for; runs outside this
+            set are skipped without fetching their details.
+        num_bosses: Expected number of bosses; splits are padded/truncated to
+            this length.
+
+    Returns:
+        A dict mapping each keystone level that had qualifying runs to a list
+        of per-run boss-split arrays.
+    """
+    levels_set = set(levels_in_scope)
+    by_level: dict[int, list[list[int]]] = defaultdict(list)
+
+    payload = raiderio.get_runs(season=season, region="world", dungeon=dungeon_slug, page=0)
+    for r in payload.get("rankings", []):
+        run = r.get("run", {})
+        run_id = run.get("keystone_run_id")
+        level = run.get("mythic_level")
+        if run_id is None or level not in levels_set:
+            continue
+        try:
+            details = RunDetails.model_validate(
+                raiderio.get_run_details(season=season, run_id=run_id)
+            )
+        except Exception:
+            continue
+        if not details.encounters:
+            continue
+        splits = details.boss_splits_ms()
+        normalized = [int(s) if s is not None else 0 for s in splits[:num_bosses]]
+        while len(normalized) < num_bosses:
+            normalized.append(0)
+        if all(v == 0 for v in normalized):
+            continue
+        by_level[level].append(normalized)
+
+    return dict(by_level)

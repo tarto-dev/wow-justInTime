@@ -127,3 +127,109 @@ def test_select_slowest_percentile_rejects_invalid_percentile() -> None:
 
     with pytest.raises(ValueError):
         select_slowest_percentile([], percentile=150, min_count=2)
+
+
+def test_index_real_splits_by_level_groups_by_keystone_level() -> None:
+    from jit_update.pipeline import index_real_splits_by_level
+
+    splits_22 = [425000, 850000, 1275000, 1700000]
+    splits_18 = [500000, 1000000, 1500000, 2000000]
+
+    class StubRaider:
+        def get_runs(
+            self,
+            season: str,
+            region: str,
+            dungeon: str,
+            page: int,
+            affixes: str = "all",
+        ) -> dict[str, Any]:
+            return {
+                "rankings": [
+                    {"run": {"keystone_run_id": 1, "mythic_level": 22}},
+                    {"run": {"keystone_run_id": 2, "mythic_level": 18}},
+                    {"run": {"keystone_run_id": 3, "mythic_level": 14}},  # outside scope
+                ]
+            }
+
+        def get_run_details(self, season: str, run_id: int) -> dict[str, Any]:
+            base = {
+                "season": season,
+                "status": "finished",
+                "keystone_run_id": run_id,
+                "keystone_time_ms": 1860999,
+                "completed_at": "2026-05-03T07:33:46.051Z",
+                "logged_run_id": 99 if run_id != 3 else None,
+                "num_chests": 1,
+                "time_remaining_ms": 100000,
+                "weekly_modifiers": [],
+                "dungeon": {
+                    "id": 14032,
+                    "name": "Algeth'ar Academy",
+                    "slug": "algethar-academy",
+                    "short_name": "AA",
+                    "map_challenge_mode_id": 402,
+                    "keystone_timer_ms": 1860999,
+                    "num_bosses": 4,
+                },
+            }
+            if run_id == 1:
+                base["mythic_level"] = 22
+                base["clear_time_ms"] = 1700000
+                base["logged_details"] = {
+                    "encounters": [
+                        {
+                            "id": i,
+                            "status": "finished",
+                            "duration_ms": 1,
+                            "is_success": True,
+                            "approximate_relative_started_at": 0,
+                            "approximate_relative_ended_at": s,
+                            "boss": {
+                                "name": f"B{i}",
+                                "slug": f"b{i}",
+                                "ordinal": i,
+                                "wowEncounterId": 1000 + i,
+                            },
+                        }
+                        for i, s in enumerate(splits_22)
+                    ]
+                }
+            elif run_id == 2:
+                base["mythic_level"] = 18
+                base["clear_time_ms"] = 2000000
+                base["logged_details"] = {
+                    "encounters": [
+                        {
+                            "id": i,
+                            "status": "finished",
+                            "duration_ms": 1,
+                            "is_success": True,
+                            "approximate_relative_started_at": 0,
+                            "approximate_relative_ended_at": s,
+                            "boss": {
+                                "name": f"B{i}",
+                                "slug": f"b{i}",
+                                "ordinal": i,
+                                "wowEncounterId": 1000 + i,
+                            },
+                        }
+                        for i, s in enumerate(splits_18)
+                    ]
+                }
+            else:  # run_id == 3, no logged details
+                base["mythic_level"] = 14
+                base["clear_time_ms"] = 2500000
+                base["logged_details"] = None
+            return base
+
+    result = index_real_splits_by_level(
+        StubRaider(),
+        season="season-mn-1",
+        dungeon_slug="algethar-academy",
+        levels_in_scope=[18, 19, 20, 21, 22],
+        num_bosses=4,
+    )
+    assert sorted(result.keys()) == [18, 22]
+    assert result[22] == [splits_22]
+    assert result[18] == [splits_18]
