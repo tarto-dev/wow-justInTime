@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from jit_update.splits_synthesis import collect_observed_ratios
+from jit_update.splits_synthesis import collect_observed_ratios, synthesize_splits
 
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
@@ -74,3 +74,33 @@ def test_collect_observed_ratios_handles_partial_coverage() -> None:
     ratios = collect_observed_ratios(stub, "season-mn-1", "algethar-academy", num_bosses=4)
     # Only one run with splits, so each ordinal has a single sample
     assert all(r is not None for r in ratios)
+
+
+def test_synthesize_splits_applies_ratios() -> None:
+    ratios: list[float | None] = [0.25, 0.5, 0.75, 1.0]
+    result = synthesize_splits(clear_time_ms=1850000, ratios=ratios, num_bosses=4)
+    assert result == [462500, 925000, 1387500, 1850000]
+
+
+def test_synthesize_splits_falls_back_to_equidistant_when_all_none() -> None:
+    result = synthesize_splits(
+        clear_time_ms=1800000, ratios=[None, None, None, None], num_bosses=4
+    )
+    # Equidistant: 1/4, 2/4, 3/4, 4/4 of clear_time
+    assert result == [450000, 900000, 1350000, 1800000]
+
+
+def test_synthesize_splits_uses_equidistant_for_missing_ordinals_when_some_present() -> None:
+    ratios: list[float | None] = [0.25, None, 0.75, 1.0]
+    result = synthesize_splits(clear_time_ms=1800000, ratios=ratios, num_bosses=4)
+    assert result[0] == 450000  # 0.25 * 1.8M
+    assert result[1] == 900000  # equidistant: 2/4 * 1.8M
+    assert result[2] == 1350000  # 0.75 * 1.8M
+    assert result[3] == 1800000  # 1.0 * 1.8M
+
+
+def test_synthesize_splits_rounds_to_int() -> None:
+    ratios: list[float | None] = [0.333, 0.666, 1.0]
+    result = synthesize_splits(clear_time_ms=1000000, ratios=ratios, num_bosses=3)
+    assert all(isinstance(v, int) for v in result)
+    assert result == [333000, 666000, 1000000]

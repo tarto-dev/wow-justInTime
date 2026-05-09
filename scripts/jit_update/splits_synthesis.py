@@ -63,3 +63,33 @@ def collect_observed_ratios(
     return [
         statistics.median(samples) if samples else None for samples in samples_per_ordinal
     ]
+
+
+def synthesize_splits(
+    clear_time_ms: int,
+    ratios: list[float | None],
+    num_bosses: int,
+) -> list[int]:
+    """Build per-boss cumulative split times from clear_time and observed ratios.
+
+    Args:
+        clear_time_ms: Total clear time of the run in milliseconds.
+        ratios:        Length ``num_bosses`` list of float ratios in [0, 1] or
+                       ``None`` at positions without observed data. Shorter lists
+                       are padded with ``None``.
+        num_bosses:    Expected number of bosses (caller's authoritative count).
+
+    Returns:
+        ``num_bosses`` ints. For positions where ``ratios[i]`` is a float,
+        ``round(clear_time_ms * ratios[i])``. For ``None`` positions, equidistant
+        fallback ``round(clear_time_ms * (i+1) / num_bosses)``.
+    """
+    padded: list[float | None] = list(ratios) + [None] * max(0, num_bosses - len(ratios))
+    result: list[int] = []
+    for i in range(num_bosses):
+        r = padded[i]
+        if r is None:
+            result.append(round(clear_time_ms * (i + 1) / num_bosses))
+        else:
+            result.append(round(clear_time_ms * r))
+    return result
