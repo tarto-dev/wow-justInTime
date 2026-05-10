@@ -177,6 +177,46 @@ def test_render_emits_addon_required_fields() -> None:
     assert "keystone_timer_ms" not in out
 
 
+def test_render_emits_wow_encounter_id_per_boss() -> None:
+    doc = {
+        "meta": {"generated_at": "x", "schema_version": 2, "season": "y", "source": "z"},
+        "dungeons": {
+            "d": {
+                "challenge_mode_id": 1,
+                "num_bosses": 2,
+                "short_name": "D",
+                "timer_ms": 1,
+                "bosses": [
+                    {"ordinal": 0, "slug": "a", "name": "A", "wow_encounter_id": 2563},
+                    {"ordinal": 1, "slug": "b", "name": "B", "wow_encounter_id": 2564},
+                ],
+                "levels": {},
+            }
+        },
+    }
+    out = render_data_lua(doc)
+    assert "wow_encounter_id = 2563" in out
+    assert "wow_encounter_id = 2564" in out
+
+
+def test_render_emits_zero_for_missing_wow_encounter_id() -> None:
+    doc = {
+        "meta": {"generated_at": "x", "schema_version": 2, "season": "y", "source": "z"},
+        "dungeons": {
+            "d": {
+                "challenge_mode_id": 1,
+                "num_bosses": 1,
+                "short_name": "D",
+                "timer_ms": 1,
+                "bosses": [{"ordinal": 0, "slug": "a", "name": "A"}],
+                "levels": {},
+            }
+        },
+    }
+    out = render_data_lua(doc)
+    assert "wow_encounter_id = 0" in out
+
+
 def test_render_output_is_deterministic() -> None:
     """Same input → same output, byte-for-byte."""
     doc = {

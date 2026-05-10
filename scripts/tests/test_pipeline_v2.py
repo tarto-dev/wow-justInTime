@@ -429,6 +429,10 @@ def test_build_document_from_discovered_assembles_meta_and_dungeons_with_v2_sche
     assert aa["levels"][22]["splits_source"] == "raiderio"
     # Bosses is a list with 0-indexed ordinals
     assert isinstance(aa["bosses"], list)
+    assert aa["bosses"][0]["ordinal"] == 0
+    assert aa["bosses"][3]["ordinal"] == 3
+    assert aa["bosses"][0]["wow_encounter_id"] == 1000
+    assert aa["bosses"][3]["wow_encounter_id"] == 1003
 
 
 def test_discover_runs_skips_realms_that_raise_blizzard_error(capsys: pytest.CaptureFixture[str]) -> None:

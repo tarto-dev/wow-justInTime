@@ -48,10 +48,12 @@ def render_data_lua(doc: dict[str, Any]) -> str:
         lines.append("      bosses = {")
         for boss in dungeon.get("bosses", []):
             ord_val = int(boss.get("ordinal", 0))
+            wow_id = int(boss.get("wow_encounter_id") or 0)
             lines.append(
                 f'        {{ ordinal = {ord_val}, '
                 f'slug = "{boss.get("slug", "")}", '
-                f'name = "{_escape_lua_string(boss.get("name", ""))}" }},'
+                f'name = "{_escape_lua_string(boss.get("name", ""))}", '
+                f'wow_encounter_id = {wow_id} }},'
             )
         lines.append("      },")
         # Levels sub-table — direct, no affix nesting

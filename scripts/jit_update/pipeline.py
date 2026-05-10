@@ -604,6 +604,7 @@ def _extract_bosses_from_raiderio_runs(
                     "ordinal": ord_val,
                     "slug": enc.boss.slug,
                     "name": enc.boss.name,
+                    "wow_encounter_id": enc.boss.wow_encounter_id,
                 }
         # Once we have a stable set of bosses, we can stop. But keep going if
         # different runs have different boss sets (some routes skip optionals).
@@ -674,7 +675,7 @@ def build_document_from_discovered(
             # Fallback: 4 bosses with placeholder names (matches v1 fallback)
             num_bosses = 4
             bosses_block = [
-                {"ordinal": i, "slug": f"boss-{i+1}", "name": f"Boss {i+1}"}
+                {"ordinal": i, "slug": f"boss-{i+1}", "name": f"Boss {i+1}", "wow_encounter_id": 0}
                 for i in range(num_bosses)
             ]
 
