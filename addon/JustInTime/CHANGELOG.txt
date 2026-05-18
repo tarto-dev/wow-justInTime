@@ -1,6 +1,29 @@
 JustInTime — Changelog
 =======================
 
+v0.4.1 — Cap reference clear-time at keystone timer + visible ref source (2026-05-18)
+-------------------------------------------------------------------------------------
+
+Fixes:
+- Reference clear-times no longer exceed the keystone timer. The data
+  pipeline now filters out depleted runs at three layers: Blizzard
+  leaderboard discovery (`duration_ms > timer_ms`), Raider.IO real-split
+  enrichment (`num_chests <= 0`), and observed-ratio synthesis. Previously
+  the "slowest 10 % timed" sample silently included depleted runs, pushing
+  the published median 10-12 % past the timer (e.g. AA +15: 34:28 vs
+  31:00 timer). Re-run `make data` to regenerate Data.lua with the fix.
+- Key-end chat recap (KEY_END_TIMED / KEY_END_DEPLETED) now honors the
+  active reference_mode instead of hard-coding "public ref". When the
+  user runs in `perso_*` mode the recap labels the comparison correctly,
+  and falls back to "public ref (fallback)" only when no personal run
+  exists for that (dungeon, level, affix).
+
+UX:
+- The overlay reference row now shows which source is active:
+  "Réf publique" / "Réf perso ⚡" / "Réf perso ↻" / "Réf perso ~", with a
+  "(fallback)" suffix on the value when a perso mode silently falls back
+  to public for lack of personal runs.
+
 v0.4.0 — Data.lua schema v2: keystone +15-22 coverage (2026-05-09)
 ------------------------------------------------------------------
 
