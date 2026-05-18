@@ -143,6 +143,8 @@ local function buildFrame()
     rowETA.label:SetText(L("OVERLAY_LABEL_ETA"))
     rowLast.label:SetText(L("OVERLAY_LABEL_LAST"))
     rowRef.label:SetText(L("OVERLAY_LABEL_REF"))
+    rowRef.label:SetWidth(160)  -- accommodate longer per-source labels
+    rowRef.label:SetJustifyH("LEFT")
 
     -- Boss table (per-boss splits: name | your time | ref time)
     -- Separator line above the table for visual cleanliness.
@@ -328,8 +330,24 @@ function Overlay.SetData(elapsed_ms, pace, num_bosses, kills_count, last_split_m
         if s and ref.level_used and ref.level_used ~= s.level then
             refStr = string.format(L("OVERLAY_REF_LEVEL_FALLBACK"), refStr, ref.level_used)
         end
+        local sl = ref.source_label
+        local labelKey = "OVERLAY_LABEL_REF"
+        if sl == "public" or sl == "public_fallback" then
+            labelKey = "OVERLAY_LABEL_REF_PUBLIC"
+        elseif sl == "perso_fastest" then
+            labelKey = "OVERLAY_LABEL_REF_FASTEST"
+        elseif sl == "perso_recent" then
+            labelKey = "OVERLAY_LABEL_REF_RECENT"
+        elseif sl == "perso_median" then
+            labelKey = "OVERLAY_LABEL_REF_MEDIAN"
+        end
+        rowRef.label:SetText(L(labelKey))
+        if sl == "public_fallback" then
+            refStr = string.format(L("OVERLAY_REF_PUBLIC_FALLBACK"), refStr)
+        end
         rowRef.value:SetText(refStr)
     else
+        rowRef.label:SetText(L("OVERLAY_LABEL_REF"))
         rowRef.value:SetText(L("OVERLAY_REF_NONE"))
     end
 

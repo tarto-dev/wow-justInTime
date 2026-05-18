@@ -142,6 +142,66 @@ function PaceEngine.AggregatePersonalRuns(runs, mode)
     }
 end
 
+-- Build a public-source reference cell for (dungeon_slug, level, affix_combo).
+-- Walks Data.lua and applies the FindNearestLevel fallback when the exact
+-- level isn't populated. ``source_label`` lets the caller distinguish a direct
+-- hit ("public") from a perso-mode fallback ("public_fallback").
+local function buildPublicRef(dungeon_slug, level, affix_combo, ignore_affixes, source_label)
+    local data = _G.JustInTimeData
+    if not data or not data.dungeons or not data.dungeons[dungeon_slug] then
+        return nil
+    end
+    local dg = data.dungeons[dungeon_slug]
+    local cell, comboUsed = lookupCell(dg, level, affix_combo, ignore_affixes)
+    local levelUsed = level
+    if not cell then
+        local nearest = PaceEngine.FindNearestLevel(dg.levels, level, LEVEL_FALLBACK_CAP)
+        if nearest then
+            cell, comboUsed = lookupCell(dg, nearest, affix_combo, ignore_affixes)
+            if cell then levelUsed = nearest end
+        end
+    end
+    if not cell then return nil end
+    return {
+        boss_splits_ms     = cell.boss_splits_ms,
+        clear_time_ms      = cell.clear_time_ms,
+        num_bosses         = dg.num_bosses,
+        source_label       = source_label,
+        affix_combo_used   = comboUsed,
+        level_used         = levelUsed,
+        sample_size        = cell.sample_size,
+    }
+end
+
+-- Resolve the reference cell for an explicit (dungeon_slug, level, affix_combo)
+-- triplet, honoring the user's current Config().reference_mode and
+-- ignore_affixes flag. Used by OnKeyEnd (no active session) and by
+-- GetReferenceForActive (current session).
+function PaceEngine.GetReferenceForDungeon(dungeon_slug, level, affix_combo)
+    local State = NS.State
+    if not State then return nil end
+    local cfg = State.Config()
+
+    if cfg.reference_mode == "public" then
+        return buildPublicRef(dungeon_slug, level, affix_combo, cfg.ignore_affixes, "public")
+    end
+
+    local subtype = cfg.reference_mode:match("^perso_(.+)$")
+    if not subtype then return nil end
+    local pool = State.GetPersonalRuns(
+        dungeon_slug,
+        level,
+        cfg.ignore_affixes and nil or affix_combo
+    )
+    local agg = PaceEngine.AggregatePersonalRuns(pool, subtype)
+    if agg then
+        agg.level_used = level
+        return agg
+    end
+    -- Fallback to public if no perso data
+    return buildPublicRef(dungeon_slug, level, affix_combo, cfg.ignore_affixes, "public_fallback")
+end
+
 -- Look up the active reference cell based on State.GetActiveSession() + State.Config().
 -- Returns nil if no session, no Data.lua, or no matching cell (and no fallback hits).
 function PaceEngine.GetReferenceForActive()
@@ -149,72 +209,7 @@ function PaceEngine.GetReferenceForActive()
     if not State then return nil end
     local s = State.GetActiveSession()
     if not s then return nil end
-    local cfg = State.Config()
-    local data = _G.JustInTimeData
-
-    if cfg.reference_mode == "public" then
-        if not data or not data.dungeons or not data.dungeons[s.dungeon_slug] then
-            return nil
-        end
-        local dg = data.dungeons[s.dungeon_slug]
-        local cell, comboUsed = lookupCell(dg, s.level, s.affix_combo, cfg.ignore_affixes)
-        local levelUsed = s.level
-        if not cell then
-            local nearest = PaceEngine.FindNearestLevel(dg.levels, s.level, LEVEL_FALLBACK_CAP)
-            if nearest then
-                cell, comboUsed = lookupCell(dg, nearest, s.affix_combo, cfg.ignore_affixes)
-                if cell then levelUsed = nearest end
-            end
-        end
-        if not cell then return nil end
-        return {
-            boss_splits_ms     = cell.boss_splits_ms,
-            clear_time_ms      = cell.clear_time_ms,
-            num_bosses         = dg.num_bosses,
-            source_label       = "public",
-            affix_combo_used   = comboUsed,
-            level_used         = levelUsed,
-            sample_size        = cell.sample_size,
-        }
-    else
-        local subtype = cfg.reference_mode:match("^perso_(.+)$")
-        if not subtype then return nil end
-        local pool = State.GetPersonalRuns(
-            s.dungeon_slug,
-            s.level,
-            cfg.ignore_affixes and nil or s.affix_combo
-        )
-        local agg = PaceEngine.AggregatePersonalRuns(pool, subtype)
-        if agg then
-            agg.level_used = s.level
-            return agg
-        end
-        -- Fallback to public if no perso data
-        if data and data.dungeons and data.dungeons[s.dungeon_slug] then
-            local dg = data.dungeons[s.dungeon_slug]
-            local cell, comboUsed = lookupCell(dg, s.level, s.affix_combo, cfg.ignore_affixes)
-            local levelUsed = s.level
-            if not cell then
-                local nearest = PaceEngine.FindNearestLevel(dg.levels, s.level, LEVEL_FALLBACK_CAP)
-                if nearest then
-                    cell, comboUsed = lookupCell(dg, nearest, s.affix_combo, cfg.ignore_affixes)
-                    if cell then levelUsed = nearest end
-                end
-            end
-            if cell then
-                return {
-                    boss_splits_ms     = cell.boss_splits_ms,
-                    clear_time_ms      = cell.clear_time_ms,
-                    num_bosses         = dg.num_bosses,
-                    source_label       = "public_fallback",
-                    affix_combo_used   = comboUsed,
-                    level_used         = levelUsed,
-                    sample_size        = cell.sample_size,
-                }
-            end
-        end
-        return nil
-    end
+    return PaceEngine.GetReferenceForDungeon(s.dungeon_slug, s.level, s.affix_combo)
 end
 
 -- Helper: returns ref splits as { {ord=K, split=T}, ... } sorted ascending by T.

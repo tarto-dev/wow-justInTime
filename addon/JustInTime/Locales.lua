@@ -25,6 +25,7 @@ local fr = {
 
     REF_NONE              = "réf. indispo",
     REF_PUBLIC_LABEL      = "ref publique",
+    REF_PUBLIC_FALLBACK_LABEL = "ref publique (fallback)",
     REF_PERSO_FASTEST     = "Mes runs (la + rapide)",
     REF_PERSO_RECENT      = "Mes runs (la + récente)",
     REF_PERSO_MEDIAN      = "Mes runs (médiane)",
@@ -45,8 +46,13 @@ local fr = {
     OVERLAY_LABEL_ETA     = "ETA",
     OVERLAY_LABEL_LAST    = "Last split",
     OVERLAY_LABEL_REF     = "Réf",
+    OVERLAY_LABEL_REF_PUBLIC  = "Réf publique",
+    OVERLAY_LABEL_REF_FASTEST = "Réf perso ⚡",
+    OVERLAY_LABEL_REF_RECENT  = "Réf perso ↻",
+    OVERLAY_LABEL_REF_MEDIAN  = "Réf perso ~",
     OVERLAY_REF_NONE      = "réf indispo",
     OVERLAY_REF_LEVEL_FALLBACK = "%s (clé +%d)",
+    OVERLAY_REF_PUBLIC_FALLBACK = "%s (fallback)",
     LEVEL_FALLBACK_INFO   = "pas de réf pour clé +%d, fallback sur clé +%d",
 
     PANEL_REF_HEADER      = "Référence",
@@ -102,6 +108,7 @@ local en = {
 
     REF_NONE              = "ref unavailable",
     REF_PUBLIC_LABEL      = "public ref",
+    REF_PUBLIC_FALLBACK_LABEL = "public ref (fallback)",
     REF_PERSO_FASTEST     = "My runs (fastest)",
     REF_PERSO_RECENT      = "My runs (most recent)",
     REF_PERSO_MEDIAN      = "My runs (median)",
@@ -122,8 +129,13 @@ local en = {
     OVERLAY_LABEL_ETA     = "ETA",
     OVERLAY_LABEL_LAST    = "Last split",
     OVERLAY_LABEL_REF     = "Ref",
+    OVERLAY_LABEL_REF_PUBLIC  = "Public ref",
+    OVERLAY_LABEL_REF_FASTEST = "My ref ⚡",
+    OVERLAY_LABEL_REF_RECENT  = "My ref ↻",
+    OVERLAY_LABEL_REF_MEDIAN  = "My ref ~",
     OVERLAY_REF_NONE      = "ref unavailable",
     OVERLAY_REF_LEVEL_FALLBACK = "%s (key +%d)",
+    OVERLAY_REF_PUBLIC_FALLBACK = "%s (fallback)",
     LEVEL_FALLBACK_INFO   = "no ref for key +%d, falling back to key +%d",
 
     PANEL_REF_HEADER      = "Reference",

@@ -49,7 +49,8 @@ end
 local function refLabel(ref)
     if not ref then return L("OVERLAY_REF_NONE") end
     local sl = ref.source_label
-    if sl == "public" or sl == "public_fallback" then return L("REF_PUBLIC_LABEL") end
+    if sl == "public" then return L("REF_PUBLIC_LABEL") end
+    if sl == "public_fallback" then return L("REF_PUBLIC_FALLBACK_LABEL") end
     if sl == "perso_fastest" then return L("REF_PERSO_FASTEST") end
     if sl == "perso_recent"  then return L("REF_PERSO_RECENT") end
     if sl == "perso_median"  then return L("REF_PERSO_MEDIAN") end
@@ -105,25 +106,18 @@ end
 
 function ChatPrinter.OnKeyEnd(run)
     local State = NS.State
+    local PaceEngine = NS.PaceEngine
     if not State then return end
     local cfg = State.Config()
     if not cfg.triggers.chat_key_end then return end
 
-    -- Re-resolve reference for the dungeon/level/affix that JUST finished.
-    local data = _G.JustInTimeData
-    local refClear = nil
-    local refLabelStr = L("OVERLAY_REF_NONE")
-    if data and data.dungeons and data.dungeons[run.dungeon_slug] then
-        local dg = data.dungeons[run.dungeon_slug]
-        local levelEntry = dg.levels and dg.levels[run.level]
-        if levelEntry then
-            local cell = levelEntry  -- schema v2: levelEntry IS the cell
-            if cell then
-                refClear = cell.clear_time_ms
-                refLabelStr = L("REF_PUBLIC_LABEL")
-            end
-        end
-    end
+    -- Re-resolve reference for the dungeon/level/affix that JUST finished,
+    -- honoring the user's current reference_mode (public / perso_*).
+    local ref = PaceEngine
+        and PaceEngine.GetReferenceForDungeon
+        and PaceEngine.GetReferenceForDungeon(run.dungeon_slug, run.level, run.affix_combo)
+    local refClear = ref and ref.clear_time_ms or nil
+    local refLabelStr = refLabel(ref)
 
     local clearStr = ChatPrinter.FormatTime(run.clear_time_ms)
     local deltaStr = "—"
