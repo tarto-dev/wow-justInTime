@@ -166,6 +166,11 @@ def run(
             raise typer.Exit(3)
 
         season_dungeons: list[dict[str, Any]] = season_obj["dungeons"]
+        timer_ms_by_slug = {
+            dg["slug"]: int(dg["keystone_timer_seconds"]) * 1000
+            for dg in season_dungeons
+            if "slug" in dg and "keystone_timer_seconds" in dg
+        }
 
         for region, blizz in blizzard_clients.items():
             console.print(f"[dim]Discovering runs for region: {region}[/dim]")
@@ -173,6 +178,7 @@ def run(
                 blizz,
                 dungeons=season_dungeons,
                 levels=list(cfg.scope.levels),
+                timer_ms_by_slug=timer_ms_by_slug,
             )
             partials.append(partial)
 

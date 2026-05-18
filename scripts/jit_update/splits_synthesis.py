@@ -50,6 +50,9 @@ def collect_observed_ratios(
             continue
         if not details.encounters:
             continue
+        # Depleted runs skew the boss-split ratios upward. Skip them.
+        if details.num_chests <= 0:
+            continue
         clear_time = details.clear_time_ms
         if clear_time <= 0:
             continue

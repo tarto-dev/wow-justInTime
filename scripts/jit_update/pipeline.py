@@ -320,6 +320,7 @@ def discover_runs(
     *,
     dungeons: list[dict[str, Any]],
     levels: list[int],
+    timer_ms_by_slug: dict[str, int] | None = None,
 ) -> dict[str, dict[int, list[BlizzardRun]]]:
     """Iterate (realm, dungeon) for the current period, accumulate runs by (dungeon, level).
 
@@ -327,6 +328,10 @@ def discover_runs(
         blizz: BlizzardClient (real or fake).
         dungeons: Dungeon descriptors with at least 'slug' and 'challenge_mode_id'.
         levels: Allowed keystone levels; runs outside this set are dropped.
+        timer_ms_by_slug: When provided, drop runs whose ``duration_ms`` exceeds
+            the dungeon's keystone timer. The Blizzard leaderboard's
+            ``leading_groups`` includes depleted runs, which would otherwise
+            inflate the reference clear-time median above the timer.
 
     Returns:
         ``{dungeon_slug: {keystone_level: [BlizzardRun, ...]}}``
@@ -341,6 +346,7 @@ def discover_runs(
     for dungeon in dungeons:
         slug = dungeon["slug"]
         dungeon_id = int(dungeon["challenge_mode_id"])
+        timer_ms = timer_ms_by_slug.get(slug) if timer_ms_by_slug else None
         for realm_id in realm_ids:
             try:
                 runs = blizz.get_leaderboard_runs(
@@ -360,6 +366,8 @@ def discover_runs(
                 continue
             for run in runs:
                 if run.keystone_level not in levels_set:
+                    continue
+                if timer_ms is not None and run.duration_ms > timer_ms:
                     continue
                 accumulator[slug][run.keystone_level].append(run)
 
@@ -436,6 +444,10 @@ def index_real_splits_by_level(
         except Exception:
             continue
         if not details.encounters:
+            continue
+        # Depleted runs distort the split medians (their late bosses ran into
+        # the post-timer territory). Skip them entirely.
+        if details.num_chests <= 0:
             continue
         splits = details.boss_splits_ms()
         normalized = [int(s) if s is not None else 0 for s in splits[:num_bosses]]

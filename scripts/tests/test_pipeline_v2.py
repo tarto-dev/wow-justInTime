@@ -473,6 +473,121 @@ def test_discover_runs_skips_realms_that_raise_blizzard_error(capsys: pytest.Cap
     assert "skipping" in captured.err.lower() or "skip" in captured.err.lower()
 
 
+def test_discover_runs_filters_runs_above_timer_when_provided() -> None:
+    from jit_update.pipeline import discover_runs
+
+    in_time = BlizzardRun(
+        dungeon_slug="algethar-academy", region="eu", realm_id=1080, period=1062,
+        keystone_level=15, duration_ms=1800000, completed_timestamp=1,
+    )
+    depleted = BlizzardRun(
+        dungeon_slug="algethar-academy", region="eu", realm_id=1080, period=1062,
+        keystone_level=15, duration_ms=2100000, completed_timestamp=2,
+    )
+    runs_by_realm = {(1080, 402): [in_time, depleted]}
+    blizz = StubBlizzardClient(
+        period_id=1062, realm_ids=[1080], runs_by_realm_dungeon=runs_by_realm
+    )
+    dungeons = [{"slug": "algethar-academy", "challenge_mode_id": 402}]
+
+    result = discover_runs(
+        blizz,
+        dungeons=dungeons,
+        levels=[15],
+        timer_ms_by_slug={"algethar-academy": 1860000},
+    )
+
+    assert len(result["algethar-academy"][15]) == 1
+    assert result["algethar-academy"][15][0].duration_ms == 1800000
+
+
+def test_discover_runs_keeps_all_runs_when_timer_map_omitted() -> None:
+    from jit_update.pipeline import discover_runs
+
+    in_time = BlizzardRun(
+        dungeon_slug="algethar-academy", region="eu", realm_id=1080, period=1062,
+        keystone_level=15, duration_ms=1800000, completed_timestamp=1,
+    )
+    depleted = BlizzardRun(
+        dungeon_slug="algethar-academy", region="eu", realm_id=1080, period=1062,
+        keystone_level=15, duration_ms=2100000, completed_timestamp=2,
+    )
+    blizz = StubBlizzardClient(
+        period_id=1062, realm_ids=[1080],
+        runs_by_realm_dungeon={(1080, 402): [in_time, depleted]},
+    )
+    dungeons = [{"slug": "algethar-academy", "challenge_mode_id": 402}]
+
+    result = discover_runs(blizz, dungeons=dungeons, levels=[15])
+
+    assert len(result["algethar-academy"][15]) == 2
+
+
+def test_index_real_splits_skips_depleted_runs() -> None:
+    from jit_update.pipeline import index_real_splits_by_level
+
+    splits_22 = [425000, 850000, 1275000, 1700000]
+
+    class StubRaider:
+        def get_runs(
+            self,
+            season: str,
+            region: str,
+            dungeon: str,
+            page: int,
+            affixes: str = "all",
+        ) -> dict[str, Any]:
+            return {
+                "rankings": [
+                    {"run": {"keystone_run_id": 1, "mythic_level": 22}},  # in-time
+                    {"run": {"keystone_run_id": 2, "mythic_level": 22}},  # depleted
+                ]
+            }
+
+        def get_run_details(self, season: str, run_id: int) -> dict[str, Any]:
+            base = {
+                "season": season,
+                "keystone_run_id": run_id,
+                "mythic_level": 22,
+                "clear_time_ms": 1700000,
+                "keystone_time_ms": 1860999,
+                "completed_at": "2026-05-03T07:33:46.051Z",
+                "time_remaining_ms": 100000,
+                "weekly_modifiers": [],
+                "dungeon": {
+                    "id": 14032, "name": "AA", "slug": "algethar-academy",
+                    "short_name": "AA", "map_challenge_mode_id": 402,
+                    "keystone_timer_ms": 1860999, "num_bosses": 4,
+                },
+                "logged_details": {
+                    "encounters": [
+                        {
+                            "id": i, "duration_ms": 1, "is_success": True,
+                            "approximate_relative_started_at": 0,
+                            "approximate_relative_ended_at": s,
+                            "boss": {
+                                "name": f"B{i}", "slug": f"b{i}",
+                                "ordinal": i, "wowEncounterId": 1000 + i,
+                            },
+                        }
+                        for i, s in enumerate(splits_22)
+                    ]
+                },
+            }
+            base["num_chests"] = 1 if run_id == 1 else 0
+            return base
+
+    result = index_real_splits_by_level(
+        StubRaider(),
+        season="season-mn-1",
+        dungeon_slug="algethar-academy",
+        levels_in_scope=[22],
+        num_bosses=4,
+    )
+    assert 22 in result
+    assert len(result[22]) == 1  # depleted dropped
+
+
 def test_merge_discovered_concatenates_run_lists() -> None:
     from jit_update.pipeline import merge_discovered
 

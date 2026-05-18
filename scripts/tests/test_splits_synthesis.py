@@ -141,6 +141,27 @@ def test_collect_observed_ratios_cached_serves_cache_on_second_call(tmp_path: Pa
     assert calls["details"] == 1, f"expected 1 /run-details call, got {calls['details']}"
 
 
+def test_collect_observed_ratios_skips_depleted_runs() -> None:
+    splits = json.loads((FIXTURE_DIR / "raiderio_run_details_with_splits.json").read_text())
+    depleted = dict(splits)
+    depleted["num_chests"] = 0  # mark as depleted
+    runs_payload = {
+        "rankings": [
+            {"run": {"keystone_run_id": 20945824}},  # in-time
+            {"run": {"keystone_run_id": 20945825}},  # depleted
+        ]
+    }
+    details_by_id = {
+        20945824: splits,
+        20945825: depleted,
+    }
+    stub = StubRaiderIO(runs_payload, details_by_id)
+    ratios = collect_observed_ratios(stub, "season-mn-1", "algethar-academy", num_bosses=4)
+    # Only the in-time run feeds the median → identical ratios to fixture
+    assert ratios[0] == pytest.approx(0.25, abs=0.001)
+    assert ratios[3] == pytest.approx(1.0, abs=0.001)
+
+
 def test_collect_observed_ratios_cached_uses_separate_keys_per_dungeon(tmp_path: Path) -> None:
     splits = json.loads((FIXTURE_DIR / "raiderio_run_details_with_splits.json").read_text())
     runs_payload = {"rankings": [{"run": {"keystone_run_id": 20945824}}]}
